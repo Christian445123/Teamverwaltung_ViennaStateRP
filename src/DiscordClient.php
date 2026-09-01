@@ -149,9 +149,12 @@ class DiscordClient
             return ['ok' => false, 'error' => 'Nutzer nicht im Discord-Server gefunden.'];
         }
 
+        // "High-Team" impliziert "Team" — vor der eigentlichen Prüfung nachtragen, falls nötig.
+        self::ensureTeamRoleForHighTeam($user, $member);
+
         // Rang-/Team-Rollen werden über das Dashboard nur zugewiesen, wenn die Person auf
         // Discord bereits die "Team"-Rolle hat. Die "Team"-Rolle selbst vergibt die
-        // Teamverwaltung nie — die wird ausschließlich manuell in Discord gepflegt.
+        // Teamverwaltung sonst nie — die wird ausschließlich manuell in Discord gepflegt.
         if (!self::memberHasTeamRole($member)) {
             return ['ok' => false, 'error' => 'Nutzer hat nicht die "Team"-Rolle auf Discord — keine Rollenzuweisung.'];
         }
@@ -222,8 +225,12 @@ class DiscordClient
 
     /**
      * Lädt den Discord-Member für eine der Pull-Operationen (Rang, High-Team) — gibt
-     * absichtlich null zurück, wenn die Person nicht (mehr) die "Team"-Rolle hat: es soll
-     * niemand synchronisiert werden, der auf Discord nicht (mehr) im Team ist.
+     * absichtlich null zurück, wenn die Person weder "Team" noch "High-Team" hat: es soll
+     * niemand synchronisiert werden, der auf Discord nicht (mehr) im Team ist. "High-Team"
+     * reicht hier bewusst schon aus (nicht nur "Team"), damit applyHighTeamFromMember()
+     * für solche Personen erreichbar bleibt und ihnen "Team" nachträgt (siehe dort) — die
+     * strengere "nur Team"-Prüfung für die eigentliche Rang-Rollen-Vergabe passiert erst in
+     * syncRolesForUser() bzw. beim Auflösen des Rangs.
      */
     private static function fetchMemberForPull(array $user): ?array
     {
@@ -231,7 +238,7 @@ class DiscordClient
             return null;
         }
         $member = self::getGuildMember($user['discord_id']);
-        if ($member === null || !self::memberHasTeamRole($member)) {
+        if ($member === null || !self::memberIsSyncEligible($member)) {
             return null;
         }
         return $member;
@@ -239,11 +246,66 @@ class DiscordClient
 
     private static function memberHasTeamRole(array $member): bool
     {
-        $teamRoleId = DB::get()->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'team'")->fetchColumn();
-        if (!$teamRoleId) {
-            return true; // "Team"-Rolle noch nicht zugeordnet → Gate deaktiviert (altes Verhalten)
+        return self::memberHasExtraRole($member, 'team');
+    }
+
+    private static function memberHasHighTeamRole(array $member): bool
+    {
+        return self::memberHasExtraRole($member, 'high_team');
+    }
+
+    /** Team ODER High-Team — der breitere Kreis, der überhaupt synchronisiert wird. */
+    private static function memberIsSyncEligible(array $member): bool
+    {
+        $teamId = self::extraRoleId('team');
+        $highTeamId = self::extraRoleId('high_team');
+        if (!$teamId && !$highTeamId) {
+            return true; // keine der beiden Rollen zugeordnet → Gate deaktiviert (altes Verhalten)
         }
-        return in_array($teamRoleId, $member['roles'] ?? [], true);
+        $roles = $member['roles'] ?? [];
+        return ($teamId && in_array($teamId, $roles, true)) || ($highTeamId && in_array($highTeamId, $roles, true));
+    }
+
+    private static function memberHasExtraRole(array $member, string $slug): bool
+    {
+        $roleId = self::extraRoleId($slug);
+        if (!$roleId) {
+            return true; // Rolle noch nicht zugeordnet → Gate deaktiviert (altes Verhalten)
+        }
+        return in_array($roleId, $member['roles'] ?? [], true);
+    }
+
+    private static function extraRoleId(string $slug): ?string
+    {
+        $stmt = DB::get()->prepare("SELECT discord_role_id FROM discord_extra_roles WHERE slug = ?");
+        $stmt->execute([$slug]);
+        $val = $stmt->fetchColumn();
+        return $val ?: null;
+    }
+
+    /**
+     * "High-Team" impliziert "Team": wer High-Team hat, aber (noch) nicht Team, bekommt Team
+     * über den Bot nachgetragen — Team wird von der Teamverwaltung sonst nirgends vergeben,
+     * das ist die eine bewusste Ausnahme. Aktualisiert $member['roles'] bei Erfolg direkt,
+     * damit nachfolgende Prüfungen im selben Durchlauf den neuen Stand sehen.
+     */
+    private static function ensureTeamRoleForHighTeam(array $user, array &$member): void
+    {
+        if (empty($user['discord_id'])) return;
+        if (!self::memberHasHighTeamRole($member)) return;
+        if (self::memberHasTeamRole($member)) return;
+
+        $teamRoleId = self::extraRoleId('team');
+        if (!$teamRoleId) return;
+
+        $headers = self::botHeaders();
+        $guildId = Settings::get('discord_guild_id');
+        if (!$headers || !$guildId) return;
+
+        $result = self::request('PUT', self::API . "/guilds/{$guildId}/members/{$user['discord_id']}/roles/{$teamRoleId}", null, $headers);
+        if ($result['ok']) {
+            $member['roles'][] = $teamRoleId;
+        }
     }
 
     private static function applyRankFromMember(array $user, array $member): array
@@ -325,15 +387,20 @@ class DiscordClient
         return self::applyHighTeamFromMember($user, $member);
     }
 
-    private static function applyHighTeamFromMember(array $user, array $member): array
+    private static function applyHighTeamFromMember(array $user, array &$member): array
     {
-        $stmt = DB::get()->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'high_team'");
-        $highTeamRoleId = $stmt->fetchColumn();
+        $highTeamRoleId = self::extraRoleId('high_team');
         if (!$highTeamRoleId) {
             return ['ok' => true, 'changed' => false];
         }
 
         $hasRole = in_array($highTeamRoleId, $member['roles'] ?? [], true) ? 1 : 0;
+
+        // "High-Team" impliziert "Team" — nachtragen, falls noch nicht vorhanden.
+        if ($hasRole) {
+            self::ensureTeamRoleForHighTeam($user, $member);
+        }
+
         if ($hasRole === (int) ($user['is_high_team'] ?? 0)) {
             return ['ok' => true, 'changed' => false];
         }

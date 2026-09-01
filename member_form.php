@@ -48,15 +48,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $notes = trim($_POST['notes'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
+    $discordId = trim($_POST['discord_id'] ?? '');
 
     if ($displayName === '') {
         flash('error', 'Anzeigename ist erforderlich.');
         redirect(url('member_form.php') . ($id ? '?id=' . $id : ''));
     }
 
+    if ($discordId !== '' && !preg_match('/^\d{15,25}$/', $discordId)) {
+        flash('error', 'Discord-ID sieht ungültig aus (nur Ziffern, 15–25 Stellen).');
+        redirect(url('member_form.php') . ($id ? '?id=' . $id : ''));
+    }
+    if ($discordId !== '') {
+        $dupStmt = $db->prepare("SELECT id FROM users WHERE discord_id = ? AND id != ?");
+        $dupStmt->execute([$discordId, $member['id'] ?? 0]);
+        if ($dupStmt->fetch()) {
+            flash('error', 'Diese Discord-ID ist bereits einem anderen Mitglied zugeordnet.');
+            redirect(url('member_form.php') . ($id ? '?id=' . $id : ''));
+        }
+    }
+
+    // Bei neu eingetragener/geänderter Discord-ID Benutzername & Avatar vom Server nachladen,
+    // damit die Verknüpfung sofort vollständig aussieht (nicht nur die nackte ID).
+    $discordUsername = $member['discord_username'] ?? null;
+    $discordAvatar = $member['discord_avatar'] ?? null;
+    if ($discordId !== '' && $discordId !== ($member['discord_id'] ?? null) && Settings::isBotConfigured()) {
+        $discordMember = DiscordClient::getGuildMember($discordId);
+        if ($discordMember && !empty($discordMember['user'])) {
+            $discordUsername = $discordMember['user']['username'] ?? null;
+            $discordAvatar = $discordMember['user']['avatar'] ?? null;
+        }
+    } elseif ($discordId === '') {
+        $discordUsername = null;
+        $discordAvatar = null;
+    }
+
     if ($member) {
-        $stmt = $db->prepare("UPDATE users SET display_name=?, email=?, rank_id=?, team_id=?, notes=?, username=?, updated_at=NOW() WHERE id=?");
-        $stmt->execute([$displayName, $email ?: null, $rankId, $teamId, $notes ?: null, $username ?: null, $member['id']]);
+        $stmt = $db->prepare("UPDATE users SET display_name=?, email=?, rank_id=?, team_id=?, notes=?, username=?, discord_id=?, discord_username=?, discord_avatar=?, updated_at=NOW() WHERE id=?");
+        $stmt->execute([$displayName, $email ?: null, $rankId, $teamId, $notes ?: null, $username ?: null, $discordId ?: null, $discordUsername, $discordAvatar, $member['id']]);
         if ($password !== '') {
             $db->prepare("UPDATE users SET password_hash=? WHERE id=?")->execute([password_hash($password, PASSWORD_DEFAULT), $member['id']]);
         }
@@ -64,9 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         audit_log('member.update', $displayName);
         flash('success', 'Mitglied aktualisiert.');
     } else {
-        $stmt = $db->prepare("INSERT INTO users (display_name, email, rank_id, team_id, notes, username, password_hash, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'active')");
-        $stmt->execute([$displayName, $email ?: null, $rankId, $teamId, $notes ?: null, $username ?: null, $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null]);
+        $stmt = $db->prepare("INSERT INTO users (display_name, email, rank_id, team_id, notes, username, password_hash, discord_id, discord_username, discord_avatar, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+        $stmt->execute([$displayName, $email ?: null, $rankId, $teamId, $notes ?: null, $username ?: null, $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null, $discordId ?: null, $discordUsername, $discordAvatar]);
         $memberId = $db->lastInsertId();
         audit_log('member.create', $displayName);
         flash('success', 'Mitglied hinzugefügt.');
@@ -132,6 +161,11 @@ require __DIR__ . '/includes/header.php';
       </div>
     </div>
     <div class="field">
+      <label>Discord-ID</label>
+      <input type="text" name="discord_id" value="<?= e($member['discord_id'] ?? '') ?>" pattern="\d{15,25}" placeholder="z. B. 123456789012345678">
+      <div class="field-hint">Verknüpft das Mitglied direkt mit diesem Discord-Account (Rechtsklick auf den Nutzer in Discord → ID kopieren, Entwicklermodus muss aktiviert sein) — Benutzername &amp; Avatar werden automatisch nachgeladen, danach werden Rang/Team-Discord-Rollen synchronisiert. Leer lassen, um keine Verknüpfung zu setzen bzw. eine bestehende zu entfernen.</div>
+    </div>
+    <div class="field">
       <label>Passwort <?= $member ? '(leer lassen, um es nicht zu ändern)' : '' ?></label>
       <input type="password" name="password" minlength="6">
     </div>
@@ -159,7 +193,7 @@ require __DIR__ . '/includes/header.php';
       </form>
     <?php endif; ?>
   <?php else: ?>
-    <p class="text-muted">Dieses Mitglied hat noch keinen Discord-Account verknüpft (das Mitglied muss sich dazu selbst über "Mit Discord anmelden" verknüpfen, oder im Profil).</p>
+    <p class="text-muted">Dieses Mitglied hat noch keinen Discord-Account verknüpft. Discord-ID oben eintragen, oder das Mitglied verknüpft sich selbst über "Mit Discord anmelden" bzw. im eigenen Profil.</p>
   <?php endif; ?>
 </div>
 
