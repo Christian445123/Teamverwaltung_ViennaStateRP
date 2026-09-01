@@ -7,23 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'save_general') {
-        Settings::setMany([
-            'app_url' => trim($_POST['app_url'] ?? '') ?: null,
-            'site_name' => trim($_POST['site_name'] ?? '') ?: null,
-        ]);
-        flash('success', 'Einstellungen gespeichert.');
-    } elseif ($action === 'save_discord') {
-        Settings::setMany([
-            'discord_client_id' => trim($_POST['discord_client_id'] ?? '') ?: null,
-            'discord_client_secret' => trim($_POST['discord_client_secret'] ?? '') ?: null,
-            'discord_bot_token' => trim($_POST['discord_bot_token'] ?? '') ?: null,
-            'discord_guild_id' => trim($_POST['discord_guild_id'] ?? '') ?: null,
-            'discord_webhook_url' => trim($_POST['discord_webhook_url'] ?? '') ?: null,
-            'discord_announce_channel_id' => trim($_POST['discord_announce_channel_id'] ?? '') ?: null,
-        ]);
-        flash('success', 'Discord-Einstellungen gespeichert.');
-    } elseif ($action === 'sync_members') {
+    if ($action === 'sync_members') {
         $members = DiscordClient::fetchGuildMembers();
         $created = 0; $matched = 0;
         $lowestRank = $db->query("SELECT id FROM ranks ORDER BY level ASC LIMIT 1")->fetchColumn();
@@ -35,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $existing = $stmt->fetch();
             $name = ($m['nick'] ?? null) ?: ($m['user']['global_name'] ?? $m['user']['username']);
             if ($existing) {
-                $db->prepare("UPDATE users SET discord_username=?, discord_avatar=?, updated_at=datetime('now') WHERE id=?")
+                $db->prepare("UPDATE users SET discord_username=?, discord_avatar=?, updated_at=NOW() WHERE id=?")
                    ->execute([$m['user']['username'], $m['user']['avatar'], $existing['id']]);
                 $matched++;
             } else {
@@ -59,7 +43,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $roles = Settings::isBotConfigured() ? DiscordClient::fetchGuildRoles() : [];
-$channels = Settings::isBotConfigured() ? DiscordClient::fetchGuildChannels() : [];
+
+function status_row(string $label, bool $ok, string $envVar): void {
+    ?>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+      <span><?= e($label) ?> <code style="color:var(--text-muted);font-size:12px;"><?= e($envVar) ?></code></span>
+      <?php if ($ok): ?>
+        <span class="badge" style="background:var(--success);">✓ gesetzt</span>
+      <?php else: ?>
+        <span class="badge outline">nicht gesetzt</span>
+      <?php endif; ?>
+    </div>
+    <?php
+}
 
 $pageTitle = 'Einstellungen';
 $active = 'settings';
@@ -68,71 +64,30 @@ require __DIR__ . '/../includes/header.php';
 <div class="page-header"><h1>Discord &amp; Einstellungen</h1></div>
 
 <div class="card settings-section">
-  <h2>Allgemein</h2>
-  <form method="post">
-    <?= csrf_field() ?>
-    <input type="hidden" name="action" value="save_general">
-    <div class="field">
-      <label>Seitenname</label>
-      <input type="text" name="site_name" value="<?= e(Settings::get('site_name', 'Teamverwaltung')) ?>">
-    </div>
-    <div class="field">
-      <label>App-URL (für Discord-OAuth-Redirect, ohne abschließenden Slash)</label>
-      <input type="text" name="app_url" value="<?= e(Settings::get('app_url', '')) ?>" placeholder="<?= e(Settings::appUrl()) ?>">
-      <div class="field-hint">Muss exakt der Redirect-URI im Discord Developer Portal entsprechen: <code><?= e(DiscordClient::redirectUri()) ?></code></div>
-    </div>
-    <button class="btn" type="submit">Speichern</button>
-  </form>
+  <h2>Konfigurationsstatus</h2>
+  <p class="text-muted" style="margin-top:-8px;">Alle Zugangsdaten (Datenbank &amp; Discord) werden ausschließlich in der Datei <code>.env</code> im Projektstammverzeichnis gepflegt — nicht über diese Oberfläche. Das verhindert, dass Secrets in der Datenbank landen. Vorlage: <code>.env.example</code>.</p>
+
+  <?php status_row('App-URL', (bool) Settings::get('app_url'), 'APP_URL'); ?>
+  <?php status_row('Discord Client ID', (bool) Settings::get('discord_client_id'), 'DISCORD_CLIENT_ID'); ?>
+  <?php status_row('Discord Client Secret', (bool) Settings::get('discord_client_secret'), 'DISCORD_CLIENT_SECRET'); ?>
+  <?php status_row('Discord Bot-Token', (bool) Settings::get('discord_bot_token'), 'DISCORD_BOT_TOKEN'); ?>
+  <?php status_row('Discord Server (Guild) ID', (bool) Settings::get('discord_guild_id'), 'DISCORD_GUILD_ID'); ?>
+  <?php status_row('Ankündigungs-Webhook', (bool) Settings::get('discord_webhook_url'), 'DISCORD_WEBHOOK_URL'); ?>
+  <?php status_row('Ankündigungs-Channel-ID', (bool) Settings::get('discord_announce_channel_id'), 'DISCORD_ANNOUNCE_CHANNEL_ID'); ?>
+
+  <p class="field-hint" style="margin-top:14px;">Redirect-URI für das Discord Developer Portal: <code><?= e(DiscordClient::redirectUri()) ?></code></p>
 </div>
 
 <div class="card settings-section">
-  <h2>Discord App (OAuth Login)</h2>
-  <p class="text-muted">Erstelle eine Anwendung im <a href="https://discord.com/developers/applications" target="_blank" style="color:var(--accent);">Discord Developer Portal</a> und trage die Zugangsdaten hier ein. Als Redirect-URI dort <code><?= e(DiscordClient::redirectUri()) ?></code> eintragen.</p>
-  <form method="post">
-    <?= csrf_field() ?>
-    <input type="hidden" name="action" value="save_discord">
-    <div class="form-row">
-      <div class="field">
-        <label>Client ID</label>
-        <input type="text" name="discord_client_id" value="<?= e(Settings::get('discord_client_id', '')) ?>">
-      </div>
-      <div class="field">
-        <label>Client Secret</label>
-        <input type="text" name="discord_client_secret" value="<?= e(Settings::get('discord_client_secret', '')) ?>">
-      </div>
-    </div>
-
-    <h3 style="margin-top:20px;">Bot (Rollen, Mitglieder-Sync, Events)</h3>
-    <p class="text-muted" style="margin-top:-6px;">Erstelle im gleichen Portal einen Bot, lade ihn mit den Berechtigungen <em>Manage Roles</em>, <em>Manage Events</em> und <em>Send Messages</em> auf deinen Server ein (Rolle des Bots muss über den zu vergebenden Rollen stehen).</p>
-    <div class="field">
-      <label>Bot-Token</label>
-      <input type="text" name="discord_bot_token" value="<?= e(Settings::get('discord_bot_token', '')) ?>">
-    </div>
-    <div class="field">
-      <label>Server (Guild) ID</label>
-      <input type="text" name="discord_guild_id" value="<?= e(Settings::get('discord_guild_id', '')) ?>">
-    </div>
-    <div class="form-row">
-      <div class="field">
-        <label>Ankündigungs-Channel</label>
-        <?php if ($channels): ?>
-        <select name="discord_announce_channel_id">
-          <option value="">– keiner –</option>
-          <?php foreach ($channels as $c): ?>
-            <option value="<?= e($c['id']) ?>" <?= Settings::get('discord_announce_channel_id') === $c['id'] ? 'selected' : '' ?>>#<?= e($c['name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-        <?php else: ?>
-        <input type="text" name="discord_announce_channel_id" value="<?= e(Settings::get('discord_announce_channel_id', '')) ?>" placeholder="Channel-ID (optional, falls kein Webhook)">
-        <?php endif; ?>
-      </div>
-      <div class="field">
-        <label>Webhook-URL (alternative Ankündigung, bevorzugt)</label>
-        <input type="text" name="discord_webhook_url" value="<?= e(Settings::get('discord_webhook_url', '')) ?>" placeholder="https://discord.com/api/webhooks/...">
-      </div>
-    </div>
-    <button class="btn" type="submit">Discord-Einstellungen speichern</button>
-  </form>
+  <h2>Einrichtung</h2>
+  <ol style="padding-left:20px;line-height:1.9;">
+    <li>Im <a href="https://discord.com/developers/applications" target="_blank" style="color:var(--accent);">Discord Developer Portal</a> eine Anwendung erstellen, <em>Client ID</em> &amp; <em>Client Secret</em> in die <code>.env</code> eintragen.</li>
+    <li>Dort unter <em>OAuth2 → Redirects</em> genau <code><?= e(DiscordClient::redirectUri()) ?></code> hinterlegen.</li>
+    <li>Unter <em>Bot</em> einen Bot erstellen (Token in <code>DISCORD_BOT_TOKEN</code>), <em>Server Members Intent</em> aktivieren, und mit den Rechten <em>Manage Roles</em>, <em>Manage Events</em>, <em>Send Messages</em> auf den Server einladen (Bot-Rolle muss über den zu vergebenden Rollen stehen).</li>
+    <li>Server-ID in <code>DISCORD_GUILD_ID</code> eintragen.</li>
+    <li>Optional: <code>DISCORD_WEBHOOK_URL</code> oder <code>DISCORD_ANNOUNCE_CHANNEL_ID</code> für Besprechungs-Ankündigungen setzen.</li>
+    <li>Webserver neu laden — Werte werden bei jedem Request aus der <code>.env</code> gelesen.</li>
+  </ol>
 </div>
 
 <?php if (Settings::isBotConfigured()): ?>

@@ -20,7 +20,7 @@ class DiscordClient
 
     public static function redirectUri(): string
     {
-        return Settings::appUrl() . '/discord_callback.php';
+        return Settings::get('discord_redirect_uri') ?: (Settings::appUrl() . '/discord_callback.php');
     }
 
     public static function exchangeCode(string $code): ?array

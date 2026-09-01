@@ -1,4 +1,3 @@
-/storage/*.sqlite
-/storage/*.sqlite-journal
+/.env
 .DS_Store
 Thumbs.db

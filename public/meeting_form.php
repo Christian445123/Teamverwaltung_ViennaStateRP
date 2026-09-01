@@ -82,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $attendees = $db->query("SELECT id FROM users WHERE status='active'");
         }
-        $insertAttendee = $db->prepare("INSERT OR IGNORE INTO meeting_attendees (meeting_id, user_id, status) VALUES (?, ?, 'pending')");
+        $insertAttendee = $db->prepare("INSERT IGNORE INTO meeting_attendees (meeting_id, user_id, status) VALUES (?, ?, 'pending')");
         foreach ($attendees->fetchAll() as $a) {
             $insertAttendee->execute([$meetingId, $a['id']]);
         }

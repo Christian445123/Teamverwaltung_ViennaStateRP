@@ -36,7 +36,7 @@ if ($linkMode) {
         redirect(url('profile.php'));
     }
 
-    $stmt = $db->prepare("UPDATE users SET discord_id = ?, discord_username = ?, discord_avatar = ?, updated_at = datetime('now') WHERE id = ?");
+    $stmt = $db->prepare("UPDATE users SET discord_id = ?, discord_username = ?, discord_avatar = ?, updated_at = NOW() WHERE id = ?");
     $stmt->execute([$discordUser['id'], $discordUser['username'], $discordUser['avatar'], $me['id']]);
     flash('success', 'Dein Discord-Account wurde verknüpft.');
     redirect(url('profile.php'));
@@ -64,7 +64,7 @@ if (!$user) {
     $user = $stmt2->fetch();
     flash('success', 'Willkommen! Dein Konto wurde über Discord erstellt.');
 } else {
-    $stmt = $db->prepare("UPDATE users SET discord_username = ?, discord_avatar = ?, updated_at = datetime('now') WHERE id = ?");
+    $stmt = $db->prepare("UPDATE users SET discord_username = ?, discord_avatar = ?, updated_at = NOW() WHERE id = ?");
     $stmt->execute([$discordUser['username'], $discordUser['avatar'], $user['id']]);
 }
 

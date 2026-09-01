@@ -8,7 +8,7 @@ $upcoming = $db->query("
   SELECT m.*, t.name AS team_name,
     (SELECT status FROM meeting_attendees WHERE meeting_id = m.id AND user_id = " . (int) $user['id'] . ") AS my_status
   FROM meetings m LEFT JOIN teams t ON t.id = m.team_id
-  WHERE m.start_time >= datetime('now') AND m.status != 'cancelled'
+  WHERE m.start_time >= NOW() AND m.status != 'cancelled'
   ORDER BY m.start_time ASC
 ")->fetchAll();
 
@@ -16,7 +16,7 @@ $past = $db->query("
   SELECT m.*, t.name AS team_name,
     (SELECT status FROM meeting_attendees WHERE meeting_id = m.id AND user_id = " . (int) $user['id'] . ") AS my_status
   FROM meetings m LEFT JOIN teams t ON t.id = m.team_id
-  WHERE m.start_time < datetime('now') OR m.status = 'cancelled'
+  WHERE m.start_time < NOW() OR m.status = 'cancelled'
   ORDER BY m.start_time DESC LIMIT 20
 ")->fetchAll();
 

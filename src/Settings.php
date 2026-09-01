@@ -1,40 +1,31 @@
 <?php
 
+/**
+ * Alle wichtigen/geheimen Einstellungen (Discord-Zugangsdaten, App-URL) kommen
+ * ausschließlich aus der .env-Datei — nicht aus der Datenbank. Rollen-Zuordnungen
+ * pro Rang/Team bleiben in der DB (ranks.discord_role_id / teams.discord_role_id),
+ * da sie fachliche Daten sind, keine Zugangsdaten.
+ */
 class Settings
 {
-    private static ?array $cache = null;
-
-    private static function loadAll(): array
-    {
-        if (self::$cache === null) {
-            self::$cache = [];
-            $rows = DB::get()->query("SELECT key, value FROM settings")->fetchAll();
-            foreach ($rows as $row) {
-                self::$cache[$row['key']] = $row['value'];
-            }
-        }
-        return self::$cache;
-    }
+    private const MAP = [
+        'app_url' => 'APP_URL',
+        'site_name' => 'SITE_NAME',
+        'discord_client_id' => 'DISCORD_CLIENT_ID',
+        'discord_client_secret' => 'DISCORD_CLIENT_SECRET',
+        'discord_redirect_uri' => 'DISCORD_REDIRECT_URI',
+        'discord_bot_token' => 'DISCORD_BOT_TOKEN',
+        'discord_guild_id' => 'DISCORD_GUILD_ID',
+        'discord_webhook_url' => 'DISCORD_WEBHOOK_URL',
+        'discord_announce_channel_id' => 'DISCORD_ANNOUNCE_CHANNEL_ID',
+    ];
 
     public static function get(string $key, ?string $default = null): ?string
     {
-        $all = self::loadAll();
-        return $all[$key] ?? $default;
-    }
-
-    public static function set(string $key, ?string $value): void
-    {
-        $stmt = DB::get()->prepare("INSERT INTO settings (key, value) VALUES (?, ?)
-            ON CONFLICT(key) DO UPDATE SET value = excluded.value");
-        $stmt->execute([$key, $value]);
-        self::$cache[$key] = $value;
-    }
-
-    public static function setMany(array $data): void
-    {
-        foreach ($data as $key => $value) {
-            self::set($key, $value);
-        }
+        Env::load();
+        $envKey = self::MAP[$key] ?? strtoupper($key);
+        $value = Env::get($envKey, '');
+        return $value !== '' ? $value : $default;
     }
 
     public static function appUrl(): string

@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $displayName = trim($_POST['display_name'] ?? '');
         $email = trim($_POST['email'] ?? '');
         if ($displayName !== '') {
-            $stmt = $db->prepare("UPDATE users SET display_name = ?, email = ?, updated_at = datetime('now') WHERE id = ?");
+            $stmt = $db->prepare("UPDATE users SET display_name = ?, email = ?, updated_at = NOW() WHERE id = ?");
             $stmt->execute([$displayName, $email ?: null, $user['id']]);
             flash('success', 'Profil aktualisiert.');
         }
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (strlen($new) < 6) {
             flash('error', 'Neues Passwort muss mindestens 6 Zeichen haben.');
         } else {
-            $stmt = $db->prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?");
+            $stmt = $db->prepare("UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?");
             $stmt->execute([password_hash($new, PASSWORD_DEFAULT), $user['id']]);
             flash('success', 'Passwort geändert.');
         }

@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 date_default_timezone_set('Europe/Vienna');
 
+require_once __DIR__ . '/src/Env.php';
 require_once __DIR__ . '/src/Database.php';
 require_once __DIR__ . '/src/Settings.php';
 require_once __DIR__ . '/src/helpers.php';

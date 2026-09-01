@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($member) {
-        $stmt = $db->prepare("UPDATE users SET display_name=?, email=?, rank_id=?, team_id=?, notes=?, username=?, updated_at=datetime('now') WHERE id=?");
+        $stmt = $db->prepare("UPDATE users SET display_name=?, email=?, rank_id=?, team_id=?, notes=?, username=?, updated_at=NOW() WHERE id=?");
         $stmt->execute([$displayName, $email ?: null, $rankId, $teamId, $notes ?: null, $username ?: null, $member['id']]);
         if ($password !== '') {
             $db->prepare("UPDATE users SET password_hash=? WHERE id=?")->execute([password_hash($password, PASSWORD_DEFAULT), $member['id']]);

@@ -5,7 +5,7 @@ $db = DB::get();
 
 $memberCount = (int) $db->query("SELECT COUNT(*) c FROM users WHERE status = 'active'")->fetch()['c'];
 $teamCount = (int) $db->query("SELECT COUNT(*) c FROM teams")->fetch()['c'];
-$upcomingCount = (int) $db->query("SELECT COUNT(*) c FROM meetings WHERE status = 'scheduled' AND start_time >= datetime('now')")->fetch()['c'];
+$upcomingCount = (int) $db->query("SELECT COUNT(*) c FROM meetings WHERE status = 'scheduled' AND start_time >= NOW()")->fetch()['c'];
 $linkedCount = (int) $db->query("SELECT COUNT(*) c FROM users WHERE status = 'active' AND discord_id IS NOT NULL")->fetch()['c'];
 
 $upcoming = $db->query("
@@ -13,7 +13,7 @@ $upcoming = $db->query("
     (SELECT status FROM meeting_attendees WHERE meeting_id = m.id AND user_id = " . (int) $user['id'] . ") AS my_status
   FROM meetings m
   LEFT JOIN teams t ON t.id = m.team_id
-  WHERE m.status = 'scheduled' AND m.start_time >= datetime('now')
+  WHERE m.status = 'scheduled' AND m.start_time >= NOW()
   ORDER BY m.start_time ASC LIMIT 6
 ")->fetchAll();
 

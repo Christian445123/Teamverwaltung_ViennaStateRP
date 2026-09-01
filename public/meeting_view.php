@@ -16,8 +16,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $status = $_POST['rsvp_status'] ?? '';
     if (in_array($status, ['accepted', 'declined', 'maybe'], true)) {
-        $stmt = $db->prepare("INSERT INTO meeting_attendees (meeting_id, user_id, status, responded_at) VALUES (?, ?, ?, datetime('now'))
-            ON CONFLICT(meeting_id, user_id) DO UPDATE SET status = excluded.status, responded_at = excluded.responded_at");
+        $stmt = $db->prepare("INSERT INTO meeting_attendees (meeting_id, user_id, status, responded_at) VALUES (?, ?, ?, NOW())
+            ON DUPLICATE KEY UPDATE status = VALUES(status), responded_at = VALUES(responded_at)");
         $stmt->execute([$id, $user['id'], $status]);
         flash('success', 'Rückmeldung gespeichert.');
     }
