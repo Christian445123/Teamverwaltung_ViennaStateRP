@@ -47,6 +47,7 @@ require __DIR__ . '/includes/header.php';
               <span class="avatar avatar-fallback" style="width:28px;height:28px;"><?= e(mb_substr($m['display_name'], 0, 1)) ?></span>
             <?php endif; ?>
             <strong><?= e($m['display_name']) ?></strong>
+            <?php if (!empty($m['is_team'])): ?><span class="badge outline" style="font-size:10px;" title="Team">TEAM</span><?php endif; ?>
             <?php if (!empty($m['is_high_team'])): ?><span class="badge" style="background:#e8b86d;color:#2b2d31;" title="High-Team">★</span><?php endif; ?>
           </div>
         </td>

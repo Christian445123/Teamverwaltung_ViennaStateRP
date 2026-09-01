@@ -13,9 +13,28 @@ if (!$meeting) {
 }
 
 $canRespond = Perm::has($user, 'meetings.respond');
+$canManage = Perm::has($user, 'meetings.manage');
+$canViewAttendance = Perm::has($user, 'meetings.view_attendance');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
+    $action = $_POST['action'] ?? 'rsvp';
+
+    if ($action === 'mark_attendance') {
+        if (!$canManage) {
+            flash('error', 'Dir fehlt die Berechtigung, Anwesenheit zu erfassen.');
+            redirect(url('meeting_view.php?id=' . $id));
+        }
+        $attendeeId = (int) ($_POST['attendee_id'] ?? 0);
+        $attended = $_POST['attended'] ?? '';
+        if (in_array($attended, ['1', '0', ''], true)) {
+            $stmt = $db->prepare("UPDATE meeting_attendees SET attended = ? WHERE meeting_id = ? AND user_id = ?");
+            $stmt->execute([$attended === '' ? null : (int) $attended, $id, $attendeeId]);
+            flash('success', 'Anwesenheit aktualisiert.');
+        }
+        redirect(url('meeting_view.php?id=' . $id));
+    }
+
     if (!$canRespond) {
         flash('error', 'Dir fehlt die Berechtigung, auf Besprechungen zu antworten.');
         redirect(url('meeting_view.php?id=' . $id));
@@ -34,14 +53,16 @@ $myStatusStmt = $db->prepare("SELECT status FROM meeting_attendees WHERE meeting
 $myStatusStmt->execute([$id, $user['id']]);
 $myStatus = $myStatusStmt->fetchColumn() ?: 'pending';
 
-$attendees = $db->query("
-  SELECT u.id, u.display_name, u.discord_id, u.discord_avatar, ma.status
-  FROM meeting_attendees ma JOIN users u ON u.id = ma.user_id
-  WHERE ma.meeting_id = " . (int) $id . "
-  ORDER BY ma.status ASC, u.display_name ASC
-")->fetchAll();
+$attendees = [];
+if ($canViewAttendance) {
+    $attendees = $db->query("
+      SELECT u.id, u.display_name, u.discord_id, u.discord_avatar, ma.status, ma.attended
+      FROM meeting_attendees ma JOIN users u ON u.id = ma.user_id
+      WHERE ma.meeting_id = " . (int) $id . "
+      ORDER BY ma.status ASC, u.display_name ASC
+    ")->fetchAll();
+}
 
-$canManage = Perm::has($user, 'meetings.manage');
 $labels = ['accepted' => 'Zugesagt', 'declined' => 'Abgesagt', 'maybe' => 'Vielleicht', 'pending' => 'Offen'];
 
 $pageTitle = $meeting['title'];
@@ -75,6 +96,7 @@ require __DIR__ . '/includes/header.php';
       <p>Aktueller Status: <span class="badge rsvp-<?= e($myStatus) ?>"><?= $labels[$myStatus] ?></span></p>
       <form method="post" class="btn-row">
         <?= csrf_field() ?>
+        <input type="hidden" name="action" value="rsvp">
         <button class="btn" type="submit" name="rsvp_status" value="accepted">Zusagen</button>
         <button class="btn secondary" type="submit" name="rsvp_status" value="maybe">Vielleicht</button>
         <button class="btn danger" type="submit" name="rsvp_status" value="declined">Absagen</button>
@@ -83,6 +105,7 @@ require __DIR__ . '/includes/header.php';
   </div>
 </div>
 
+<?php if ($canViewAttendance): ?>
 <div class="card">
   <h2>Teilnehmer (<?= count($attendees) ?>)</h2>
   <div class="attendee-list">
@@ -93,9 +116,25 @@ require __DIR__ . '/includes/header.php';
         <?php endif; ?>
         <?= e($a['display_name']) ?>
         <span class="badge rsvp-<?= e($a['status']) ?>" style="padding:2px 8px;font-size:11px;"><?= $labels[$a['status']] ?></span>
+        <?php if ($canManage): ?>
+          <?php $attendedColor = $a['attended'] === null ? 'var(--text-muted)' : ($a['attended'] ? 'var(--success)' : 'var(--danger)'); ?>
+          <form method="post" style="display:inline;">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="mark_attendance">
+            <input type="hidden" name="attendee_id" value="<?= $a['id'] ?>">
+            <select name="attended" onchange="this.form.submit()" style="width:auto;padding:2px 6px;font-size:11px;color:<?= $attendedColor ?>;">
+              <option value="" <?= $a['attended'] === null ? 'selected' : '' ?>>Anwesenheit?</option>
+              <option value="1" <?= $a['attended'] === 1 ? 'selected' : '' ?>>✓ Anwesend</option>
+              <option value="0" <?= $a['attended'] === 0 ? 'selected' : '' ?>>✗ Abwesend</option>
+            </select>
+          </form>
+        <?php elseif ($a['attended'] !== null): ?>
+          <span class="badge outline" style="font-size:10px;color:<?= $a['attended'] ? 'var(--success)' : 'var(--danger)' ?>;"><?= $a['attended'] ? '✓ anwesend' : '✗ abwesend' ?></span>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
   </div>
 </div>
+<?php endif; ?>
 
 <?php require __DIR__ . '/includes/footer.php'; ?>

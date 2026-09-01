@@ -36,6 +36,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $rank = Perm::rankOf($user);
+
+$attendanceStmt = $db->prepare("SELECT COUNT(*) total, SUM(attended) attended FROM meeting_attendees WHERE user_id = ? AND attended IS NOT NULL");
+$attendanceStmt->execute([$user['id']]);
+$attendance = $attendanceStmt->fetch();
+
 $pageTitle = 'Profil';
 $active = 'profile';
 require __DIR__ . '/includes/header.php';
@@ -60,9 +65,27 @@ require __DIR__ . '/includes/header.php';
         <label>Rang</label>
         <div>
           <span class="badge" style="background:<?= e($rank['color'] ?? '#5865F2') ?>"><?= e($rank['name'] ?? 'Kein Rang') ?></span>
+          <?php if (!empty($user['is_team'])): ?><span class="badge outline">Team</span><?php endif; ?>
           <?php if (!empty($user['is_high_team'])): ?><span class="badge" style="background:#e8b86d;color:#2b2d31;">★ High-Team</span><?php endif; ?>
         </div>
       </div>
+      <?php if ((int) $attendance['total'] > 0): ?>
+      <div class="field">
+        <label>Anwesenheit bei Besprechungen</label>
+        <div><?= (int) $attendance['attended'] ?> von <?= (int) $attendance['total'] ?> (<?= round((int) $attendance['attended'] / (int) $attendance['total'] * 100) ?>%)</div>
+      </div>
+      <?php endif; ?>
+      <?php $myPermTags = DiscordClient::permTagsOfUser($user['id']); ?>
+      <?php if ($myPermTags): ?>
+      <div class="field">
+        <label>Zusatzrollen</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <?php foreach ($myPermTags as $slug): ?>
+            <span class="badge outline"><?= e(ucfirst(str_replace('_', ' ', $slug))) ?></span>
+          <?php endforeach; ?>
+        </div>
+      </div>
+      <?php endif; ?>
       <button class="btn" type="submit">Speichern</button>
     </form>
   </div>

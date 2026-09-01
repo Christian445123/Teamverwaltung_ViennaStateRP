@@ -178,8 +178,16 @@ Danach stehen zur Verfügung:
     eines Mitglieds bleiben unangetastet.
   - *Discord → Rang*: beim Discord-Login (und per Massen-Sync) wird der Rang anhand der
     aktuellen Discord-Rollen ggf. hochgestuft, nie automatisch heruntergestuft.
-  - „High-Team" ist zusätzlich ein Sonderfall: wird nie automatisch vergeben/entfernt, nur der
-    aktuelle Status wird gelesen und als Badge angezeigt (`users.is_high_team`).
+  - „Team" und „High-Team" sind die beiden einzigen Zuteilungsrollen — ein Mitglied kann
+    beide gleichzeitig haben, beide werden nie automatisch vergeben/entfernt, nur gelesen
+    und als Badge angezeigt (`users.is_team` / `users.is_high_team`). Hat jemand
+    „High-Team", aber (noch) nicht „Team", wird „Team" automatisch über den Bot
+    nachgetragen (siehe oben) — die einzige Ausnahme.
+  - Zusätzlich gibt es **Zusatzrollen** (Discord-Zusatzrechte, z. B. Administrator,
+    Rollen verwalten, Ban, Kick, Timeout, Mute, Move) unter *Discord & Einstellungen* —
+    reine Kennzeichnungen ohne jede Auswirkung auf Teamverwaltung-Berechtigungen, mehrere
+    gleichzeitig pro Mitglied möglich, ebenfalls nie von der Teamverwaltung vergeben,
+    nur gelesen und als Badge angezeigt (Tabellen `discord_perm_tags` / `user_perm_tags`).
 - **Besprechungen**: beim Erstellen können optional eine Ankündigung in einen Discord-
   Channel (per Webhook oder Bot) gepostet und ein natives Discord Scheduled Event
   erstellt werden, das bei Bearbeitung/Absage automatisch mit aktualisiert wird. Die
@@ -203,6 +211,13 @@ Danach stehen zur Verfügung:
 Discord-Funktionen sind komplett optional — ohne Konfiguration funktioniert die
 Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
 
+- **Anwesenheitserfassung**: unabhängig von der Zu-/Absage kann bei jedem Teilnehmer einer
+  Besprechung (Berechtigung `meetings.manage`) nachträglich erfasst werden, ob er
+  tatsächlich anwesend war. Wer die Berechtigung `meetings.view_attendance` hat, sieht die
+  Zu-/Absagen-Liste einer Besprechung sowie eine Anwesenheitsstatistik pro Mitglied
+  (X von Y erfassten Besprechungen, in %) im Mitglied-Formular; jedes Mitglied sieht seine
+  eigene Statistik zusätzlich im eigenen Profil, unabhängig von der Berechtigung.
+
 ## Berechtigungen
 
 Berechtigungen werden über **Ränge** vergeben (Verwaltung unter *Ränge*) — jede
@@ -212,6 +227,8 @@ Berechtigung ist unabhängig pro Rang als Checkbox togglebar, keine ist fest ver
 - `meetings.manage` – Besprechungen anlegen/bearbeiten/absagen
 - `meetings.respond` – auf Besprechungen antworten (Zu-/Vielleicht/Absagen), sowohl im
   Portal als auch über die Discord-Buttons
+- `meetings.view_attendance` – Zu-/Absagen-Liste & Anwesenheitsstatistik einsehen,
+  Anwesenheit erfassen (zusammen mit `meetings.manage`)
 - `teams.manage` – Teams verwalten
 - `ranks.manage` – Ränge & Berechtigungen verwalten
 - `discord.manage` – Discord-Sync auslösen (Einstellungen selbst kommen aus `.env`)

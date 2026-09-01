@@ -214,12 +214,20 @@ class DiscordClient
     {
         $member = self::fetchMemberForPull($user);
         if ($member === null) {
-            return ['ok' => false, 'rank' => ['ok' => false, 'changed' => false], 'highTeam' => ['ok' => false, 'changed' => false]];
+            return [
+                'ok' => false,
+                'rank' => ['ok' => false, 'changed' => false],
+                'highTeam' => ['ok' => false, 'changed' => false],
+                'team' => ['ok' => false, 'changed' => false],
+                'permTags' => ['ok' => false, 'changed' => false],
+            ];
         }
         return [
             'ok' => true,
             'rank' => self::applyRankFromMember($user, $member),
             'highTeam' => self::applyHighTeamFromMember($user, $member),
+            'team' => self::applyTeamFlagFromMember($user, $member),
+            'permTags' => self::applyPermTagsFromMember($user, $member),
         ];
     }
 
@@ -408,6 +416,73 @@ class DiscordClient
         DB::get()->prepare("UPDATE users SET is_high_team = ? WHERE id = ?")->execute([$hasRole, $user['id']]);
 
         return ['ok' => true, 'changed' => true, 'is_high_team' => (bool) $hasRole];
+    }
+
+    /** Spiegelt den aktuellen "Team"-Status (analog zu High-Team) in users.is_team. */
+    private static function applyTeamFlagFromMember(array $user, array $member): array
+    {
+        $hasRole = self::memberHasTeamRole($member) ? 1 : 0;
+        if ($hasRole === (int) ($user['is_team'] ?? 0)) {
+            return ['ok' => true, 'changed' => false];
+        }
+
+        DB::get()->prepare("UPDATE users SET is_team = ? WHERE id = ?")->execute([$hasRole, $user['id']]);
+
+        return ['ok' => true, 'changed' => true, 'is_team' => (bool) $hasRole];
+    }
+
+    /** Alle konfigurierten Zusatzrollen (Administrator, Ban, Kick, …) für die Einstellungen-UI. */
+    public static function permTags(): array
+    {
+        return DB::get()->query("SELECT * FROM discord_perm_tags ORDER BY sort_order ASC")->fetchAll();
+    }
+
+    /** Aktuell gehaltene Zusatzrollen-Slugs eines Mitglieds, für die Anzeige als Badges. */
+    public static function permTagsOfUser(int $userId): array
+    {
+        $stmt = DB::get()->prepare("SELECT tag_slug FROM user_perm_tags WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
+    }
+
+    /**
+     * Spiegelt, welche der konfigurierten Zusatzrollen (discord_perm_tags) ein Mitglied
+     * aktuell auf Discord hat, in user_perm_tags — voller Abgleich (nicht additiv wie beim
+     * Rang): was fehlt wird ergänzt, was nicht mehr da ist wird entfernt. Reine Kennzeichnung
+     * ohne jede Auswirkung auf Teamverwaltung-Berechtigungen; die Teamverwaltung vergibt diese
+     * Rollen selbst nie.
+     */
+    private static function applyPermTagsFromMember(array $user, array $member): array
+    {
+        $tags = self::permTags();
+        $roles = $member['roles'] ?? [];
+        $current = self::permTagsOfUser((int) $user['id']);
+
+        $desired = [];
+        foreach ($tags as $tag) {
+            if ($tag['discord_role_id'] && in_array($tag['discord_role_id'], $roles, true)) {
+                $desired[] = $tag['slug'];
+            }
+        }
+
+        $toAdd = array_diff($desired, $current);
+        $toRemove = array_diff($current, $desired);
+        if (!$toAdd && !$toRemove) {
+            return ['ok' => true, 'changed' => false];
+        }
+
+        $db = DB::get();
+        $insert = $db->prepare("INSERT IGNORE INTO user_perm_tags (user_id, tag_slug) VALUES (?, ?)");
+        foreach ($toAdd as $slug) {
+            $insert->execute([$user['id'], $slug]);
+        }
+        if ($toRemove) {
+            $placeholders = implode(',', array_fill(0, count($toRemove), '?'));
+            $db->prepare("DELETE FROM user_perm_tags WHERE user_id = ? AND tag_slug IN ({$placeholders})")
+                ->execute(array_merge([$user['id']], array_values($toRemove)));
+        }
+
+        return ['ok' => true, 'changed' => true, 'tags' => $desired];
     }
 
     private static function rankRoleId(int $rankId): ?string

@@ -85,23 +85,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $activeUsers = $db->query("SELECT * FROM users WHERE status='active' AND discord_id IS NOT NULL")->fetchAll();
         $checked = 0;
         $upgraded = [];
-        $highTeamChanges = 0;
+        $flagChanges = 0;
+        $permTagChanges = 0;
         foreach ($activeUsers as $u) {
             $checked++;
             $result = DiscordClient::pullFromDiscord($u);
             if (!empty($result['rank']['changed'])) {
                 $upgraded[] = $u['display_name'] . ' → ' . $result['rank']['rank']['name'];
             }
-            if (!empty($result['highTeam']['changed'])) {
-                $highTeamChanges++;
+            if (!empty($result['highTeam']['changed']) || !empty($result['team']['changed'])) {
+                $flagChanges++;
+            }
+            if (!empty($result['permTags']['changed'])) {
+                $permTagChanges++;
             }
             usleep(300000);
         }
         $msg = $upgraded
             ? "Geprüft: {$checked}. Hochgestuft: " . implode(', ', $upgraded)
             : "Geprüft: {$checked}. Keine Rang-Hochstufungen nötig.";
-        if ($highTeamChanges > 0) {
-            $msg .= " High-Team-Status bei {$highTeamChanges} Mitglied(ern) aktualisiert.";
+        if ($flagChanges > 0) {
+            $msg .= " Team-/High-Team-Status bei {$flagChanges} Mitglied(ern) aktualisiert.";
+        }
+        if ($permTagChanges > 0) {
+            $msg .= " Zusatzrollen bei {$permTagChanges} Mitglied(ern) aktualisiert.";
         }
         flash('success', $msg);
     } elseif ($action === 'save_extra_roles') {
@@ -111,6 +118,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([$roleId ?: null, $slug]);
         }
         flash('success', 'Zusatzrollen gespeichert.');
+    } elseif ($action === 'save_perm_tags') {
+        $stmt = $db->prepare("UPDATE discord_perm_tags SET discord_role_id = ? WHERE slug = ?");
+        foreach (DiscordClient::permTags() as $tag) {
+            $roleId = trim($_POST['perm_tag_' . $tag['slug']] ?? '');
+            $stmt->execute([$roleId ?: null, $tag['slug']]);
+        }
+        flash('success', 'Zusatzrollen (Berechtigungs-Kennzeichnungen) gespeichert.');
     }
     redirect(url('settings.php'));
 }
@@ -119,6 +133,7 @@ $roles = Settings::isBotConfigured() ? DiscordClient::fetchGuildRoles() : [];
 $extraRoles = Settings::isBotConfigured() ? DiscordClient::extraRoles() : [];
 $extraRolesBySlug = [];
 foreach ($extraRoles as $er) { $extraRolesBySlug[$er['slug']] = $er; }
+$permTags = Settings::isBotConfigured() ? DiscordClient::permTags() : [];
 
 function status_row(string $label, bool $ok, string $envVar): void {
     ?>
@@ -239,6 +254,38 @@ require __DIR__ . '/includes/header.php';
     <button class="btn" type="submit">Speichern</button>
   </form>
   <p class="field-hint" style="margin-top:10px;">„High-Team“ wird bei jeder Discord-Anmeldung sowie über „Discord-Rollen → Rang übernehmen“ gelesen und als Badge bei den Mitgliedern angezeigt.</p>
+</div>
+
+<div class="card settings-section">
+  <h2>Zusatzrollen (Discord-Zusatzrechte)</h2>
+  <p class="text-muted" style="margin-top:-8px;">Reine Kennzeichnungen für Discord-seitige Zusatzrechte — schalten <strong>nichts</strong> in der Teamverwaltung frei, werden nie von der Teamverwaltung vergeben oder entfernt, sondern nur gelesen und als Badge angezeigt. Ein Mitglied kann mehrere gleichzeitig haben.</p>
+  <form method="post">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="save_perm_tags">
+    <div class="grid grid-2">
+      <?php foreach ($permTags as $tag): ?>
+      <div class="field">
+        <label>
+          „<?= e($tag['label']) ?>“
+          <?php if ($tag['slug'] === 'administrator'): ?>
+            <span class="text-muted" style="font-weight:400;">— vorsichtig zuordnen, sensible Discord-Rolle</span>
+          <?php endif; ?>
+        </label>
+        <?php if ($roles): ?>
+        <select name="perm_tag_<?= e($tag['slug']) ?>">
+          <option value="">– keine –</option>
+          <?php foreach ($roles as $r): if ($r['name'] === '@everyone') continue; ?>
+            <option value="<?= e($r['id']) ?>" <?= ($tag['discord_role_id'] ?? null) === $r['id'] ? 'selected' : '' ?>><?= e($r['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <?php else: ?>
+        <input type="text" name="perm_tag_<?= e($tag['slug']) ?>" value="<?= e($tag['discord_role_id'] ?? '') ?>" placeholder="Discord Rollen-ID">
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <button class="btn" type="submit" style="margin-top:8px;">Speichern</button>
+  </form>
 </div>
 
 <div class="card settings-section" style="border-color:var(--danger);">

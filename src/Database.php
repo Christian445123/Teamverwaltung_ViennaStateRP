@@ -5,7 +5,7 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 class DB
 {
     // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
-    private const SCHEMA_VERSION = 1;
+    private const SCHEMA_VERSION = 2;
 
     private static ?PDO $instance = null;
 
@@ -108,11 +108,14 @@ class DB
             CONSTRAINT fk_users_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
-        // is_high_team wurde nachträglich ergänzt — auf bereits bestehenden Installationen
-        // per ALTER nachziehen (CREATE TABLE IF NOT EXISTS greift dort nicht mehr).
+        // is_high_team / is_team wurden nachträglich ergänzt — auf bereits bestehenden
+        // Installationen per ALTER nachziehen (CREATE TABLE IF NOT EXISTS greift dort nicht mehr).
         $existingUserCols = $db->query("SHOW COLUMNS FROM `users`")->fetchAll(PDO::FETCH_COLUMN);
         if (!in_array('is_high_team', $existingUserCols, true)) {
             $db->exec("ALTER TABLE `users` ADD COLUMN `is_high_team` TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('is_team', $existingUserCols, true)) {
+            $db->exec("ALTER TABLE `users` ADD COLUMN `is_team` TINYINT(1) NOT NULL DEFAULT 0");
         }
 
         $db->exec("CREATE TABLE IF NOT EXISTS discord_extra_roles (
@@ -146,6 +149,44 @@ class DB
         $db->prepare("UPDATE discord_extra_roles SET discord_role_id = ? WHERE slug = 'team' AND discord_role_id IS NULL")
             ->execute(['1520871424871633036']);
 
+        // Zusatzrollen (Discord-Zusatzrechte): rein informative Kennzeichnungen ohne jede
+        // Auswirkung auf Teamverwaltung-Berechtigungen — werden ausschließlich manuell in
+        // Discord gepflegt und nur gelesen/gespiegelt (nie von der Teamverwaltung vergeben),
+        // exakt wie "Team"/"High-Team". Mehrere gleichzeitig pro Mitglied möglich.
+        $db->exec("CREATE TABLE IF NOT EXISTS discord_perm_tags (
+            slug VARCHAR(30) NOT NULL,
+            label VARCHAR(50) NOT NULL,
+            discord_role_id VARCHAR(32) NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (slug)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        $permTagsCount = (int) $db->query("SELECT COUNT(*) c FROM discord_perm_tags")->fetch()['c'];
+        if ($permTagsCount === 0) {
+            $stmt = $db->prepare("INSERT INTO discord_perm_tags (slug, label, sort_order) VALUES (?, ?, ?)");
+            $wantedPermTags = [
+                ['administrator', 'Administrator'],
+                ['manage_roles', 'Rollen verwalten'],
+                ['ban', 'Ban'],
+                ['kick', 'Kick'],
+                ['timeout', 'Timeout'],
+                ['mute', 'Mute'],
+                ['move', 'Move'],
+            ];
+            foreach ($wantedPermTags as $i => [$slug, $label]) {
+                $stmt->execute([$slug, $label, $i]);
+            }
+        }
+
+        // Aktueller Stand pro Mitglied: welche der obigen Zusatzrollen es GERADE auf Discord
+        // hat (voller Spiegel, kein Additiv/Nie-runterstufen wie beim Rang — reine Momentaufnahme).
+        $db->exec("CREATE TABLE IF NOT EXISTS user_perm_tags (
+            user_id INT UNSIGNED NOT NULL,
+            tag_slug VARCHAR(30) NOT NULL,
+            PRIMARY KEY (user_id, tag_slug),
+            CONSTRAINT fk_upt_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
         $db->exec("CREATE TABLE IF NOT EXISTS meetings (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,
             title VARCHAR(200) NOT NULL,
@@ -172,11 +213,19 @@ class DB
             user_id INT UNSIGNED NOT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
             responded_at DATETIME NULL,
+            attended TINYINT(1) NULL,
             PRIMARY KEY (meeting_id, user_id),
             KEY idx_ma_user (user_id),
             CONSTRAINT fk_ma_meeting FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE CASCADE,
             CONSTRAINT fk_ma_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // attended wurde nachträglich ergänzt (NULL = nicht erfasst, 1 = anwesend, 0 = nicht
+        // anwesend) — echte Anwesenheit, unabhängig von der vorherigen Zu-/Absage.
+        $existingAttendeeCols = $db->query("SHOW COLUMNS FROM `meeting_attendees`")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('attended', $existingAttendeeCols, true)) {
+            $db->exec("ALTER TABLE `meeting_attendees` ADD COLUMN `attended` TINYINT(1) NULL");
+        }
 
         $db->exec("CREATE TABLE IF NOT EXISTS audit_log (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -197,13 +246,13 @@ class DB
             ['Moderator',           30, '#7c3aed', ['meetings.respond']],
             ['Test-Developer',      40, '#06b6d4', ['meetings.respond']],
             ['Developer',           50, '#0ea5e9', ['meetings.respond']],
-            ['Test-Admin',          60, '#f97316', ['meetings.manage', 'meetings.respond']],
-            ['Admin',               70, '#ef4444', ['members.manage', 'meetings.manage', 'meetings.respond']],
-            ['Stv. Teamleitung',    80, '#e879f9', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage']],
-            ['Teamleitung',         90, '#d946ef', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage']],
-            ['Stv. Projektleitung', 100, '#fb923c', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage', 'ranks.manage']],
-            ['Projektleitung',      110, '#f59e0b', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage', 'ranks.manage', 'discord.manage']],
-            ['Owner',               120, '#e8b86d', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage', 'ranks.manage', 'discord.manage']],
+            ['Test-Admin',          60, '#f97316', ['meetings.manage', 'meetings.respond', 'meetings.view_attendance']],
+            ['Admin',               70, '#ef4444', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance']],
+            ['Stv. Teamleitung',    80, '#e879f9', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage']],
+            ['Teamleitung',         90, '#d946ef', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage']],
+            ['Stv. Projektleitung', 100, '#fb923c', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage', 'ranks.manage']],
+            ['Projektleitung',      110, '#f59e0b', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage', 'ranks.manage', 'discord.manage']],
+            ['Owner',               120, '#e8b86d', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage', 'ranks.manage', 'discord.manage']],
         ];
 
         $existingNames = $db->query("SELECT name FROM ranks")->fetchAll(PDO::FETCH_COLUMN);
@@ -219,10 +268,21 @@ class DB
         // bestehenden Rängen wird sie einmalig ergänzt, damit niemand durch die Umstellung
         // stillschweigend die Antwort-Möglichkeit verliert — danach frei über die
         // Rollenverwaltung einschränkbar.
+        // "meetings.view_attendance" ist bewusst NICHT für alle Ränge gedacht (anders als
+        // meetings.respond oben) — wer bereits meetings.manage hat, bekommt sie zusätzlich
+        // automatisch, alle anderen bestehenden Ränge bleiben unverändert ohne diese Sicht.
         foreach ($db->query("SELECT id, permissions FROM ranks")->fetchAll() as $r) {
             $perms = json_decode($r['permissions'] ?? '[]', true) ?: [];
+            $changed = false;
             if (!in_array('meetings.respond', $perms, true)) {
                 $perms[] = 'meetings.respond';
+                $changed = true;
+            }
+            if (in_array('meetings.manage', $perms, true) && !in_array('meetings.view_attendance', $perms, true)) {
+                $perms[] = 'meetings.view_attendance';
+                $changed = true;
+            }
+            if ($changed) {
                 $db->prepare("UPDATE ranks SET permissions = ? WHERE id = ?")->execute([json_encode($perms), $r['id']]);
             }
         }

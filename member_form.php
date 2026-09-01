@@ -32,11 +32,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'sync_discord' && $member) {
-        $result = DiscordClient::syncRolesForUser($member);
-        if ($result['ok']) {
-            flash('success', $result['changed'] ? 'Discord-Rollen aktualisiert.' : 'Discord-Rollen waren bereits aktuell.');
+        $push = DiscordClient::syncRolesForUser($member);
+        $pull = DiscordClient::pullFromDiscord($member);
+        if ($push['ok']) {
+            $msg = $push['changed'] ? 'Discord-Rollen aktualisiert.' : 'Discord-Rollen waren bereits aktuell.';
+            if (!empty($pull['rank']['changed'])) {
+                $msg .= ' Rang aus Discord übernommen: "' . $pull['rank']['rank']['name'] . '".';
+            }
+            flash('success', $msg);
         } else {
-            flash('error', 'Discord-Sync fehlgeschlagen: ' . ($result['error'] ?? 'Unbekannter Fehler'));
+            flash('error', 'Discord-Sync fehlgeschlagen: ' . ($push['error'] ?? 'Unbekannter Fehler'));
         }
         redirect(url('member_form.php?id=' . $member['id']));
     }
@@ -185,6 +190,13 @@ require __DIR__ . '/includes/header.php';
   <h2>Discord</h2>
   <?php if ($member['discord_id']): ?>
     <p>Verknüpft mit <strong><?= e($member['discord_username']) ?></strong></p>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
+      <?php if (!empty($member['is_team'])): ?><span class="badge outline">Team</span><?php endif; ?>
+      <?php if (!empty($member['is_high_team'])): ?><span class="badge" style="background:#e8b86d;color:#2b2d31;">★ High-Team</span><?php endif; ?>
+      <?php foreach (DiscordClient::permTagsOfUser($member['id']) as $slug): ?>
+        <span class="badge outline"><?= e(ucfirst(str_replace('_', ' ', $slug))) ?></span>
+      <?php endforeach; ?>
+    </div>
     <?php if (Settings::isBotConfigured()): ?>
       <form method="post">
         <?= csrf_field() ?>
@@ -196,6 +208,22 @@ require __DIR__ . '/includes/header.php';
     <p class="text-muted">Dieses Mitglied hat noch keinen Discord-Account verknüpft. Discord-ID oben eintragen, oder das Mitglied verknüpft sich selbst über "Mit Discord anmelden" bzw. im eigenen Profil.</p>
   <?php endif; ?>
 </div>
+
+<?php if (Perm::has($user, 'meetings.view_attendance')): ?>
+<?php
+  $attendanceStmt = $db->prepare("SELECT COUNT(*) total, SUM(attended) attended FROM meeting_attendees WHERE user_id = ? AND attended IS NOT NULL");
+  $attendanceStmt->execute([$member['id']]);
+  $memberAttendance = $attendanceStmt->fetch();
+?>
+<div class="card" style="max-width:640px;">
+  <h2>Anwesenheit</h2>
+  <?php if ((int) $memberAttendance['total'] > 0): ?>
+    <p><?= (int) $memberAttendance['attended'] ?> von <?= (int) $memberAttendance['total'] ?> erfassten Besprechungen anwesend (<?= round((int) $memberAttendance['attended'] / (int) $memberAttendance['total'] * 100) ?>%).</p>
+  <?php else: ?>
+    <p class="text-muted">Noch keine Anwesenheit erfasst.</p>
+  <?php endif; ?>
+</div>
+<?php endif; ?>
 
 <?php if (!$member['is_superadmin']): ?>
 <div class="card" style="max-width:640px;border-color:var(--danger);">
