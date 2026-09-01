@@ -163,16 +163,22 @@ Danach stehen zur Verfügung:
 - **Mitglieder aus Discord synchronisieren**: importiert nur Server-Mitglieder mit der
   Discord-Rolle „Team" als Teamverwaltung-Mitglieder (Button unter *Discord &
   Einstellungen*; ohne zugeordnete „Team"-Rolle werden alle Server-Mitglieder importiert).
-- **Automatische Rollenvergabe in beide Richtungen**:
+- **„Team"-Rolle ist Voraussetzung, keine automatische Vergabe**: die Teamverwaltung
+  vergibt/entfernt die „Team"-Rolle selbst nie — die wird ausschließlich manuell in
+  Discord gepflegt. Sie ist stattdessen die Bedingung dafür, dass eine Person überhaupt
+  synchronisiert wird (Import, Rang-Vergabe, Discord→Rang-Pull, RSVP-Berechtigung).
+  Mitglieder ohne diese Rolle bleiben von allen Sync-Vorgängen unberührt.
+- **Automatische Rollenvergabe in beide Richtungen** (jeweils nur für Mitglieder mit
+  der „Team"-Rolle):
   - *Rang/Team → Discord*: jedem Rang und jedem Team kann eine Discord-Rolle zugeordnet
     werden (unter *Ränge* bzw. *Teams*); bei Änderung des Rangs/Teams eines Mitglieds
-    (oder manuell per Klick) werden die zugeordneten Discord-Rollen gesetzt. Zusätzlich
-    bekommt jedes aktive, verknüpfte Mitglied automatisch die allgemeine „Team"-Rolle.
-    Es werden ausschließlich Rollen angefasst, die einem Rang/Team/„Team" zugeordnet
-    sind — alle anderen Discord-Rollen eines Mitglieds bleiben unangetastet.
+    (oder manuell per Klick) werden die zugeordneten Discord-Rollen gesetzt — aber nur,
+    wenn das Mitglied auf Discord bereits die „Team"-Rolle hat. Es werden ausschließlich
+    Rollen angefasst, die einem Rang/Team zugeordnet sind — alle anderen Discord-Rollen
+    eines Mitglieds bleiben unangetastet.
   - *Discord → Rang*: beim Discord-Login (und per Massen-Sync) wird der Rang anhand der
     aktuellen Discord-Rollen ggf. hochgestuft, nie automatisch heruntergestuft.
-  - „High-Team" ist ein Sonderfall: wird nie automatisch vergeben/entfernt, nur der
+  - „High-Team" ist zusätzlich ein Sonderfall: wird nie automatisch vergeben/entfernt, nur der
     aktuelle Status wird gelesen und als Badge angezeigt (`users.is_high_team`).
 - **Besprechungen**: beim Erstellen können optional eine Ankündigung in einen Discord-
   Channel (per Webhook oder Bot) gepostet und ein natives Discord Scheduled Event

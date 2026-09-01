@@ -154,10 +154,10 @@ require __DIR__ . '/includes/header.php';
       <button class="btn secondary" type="submit">Discord-Rollen → Rang übernehmen</button>
     </form>
   </div>
-  <p class="field-hint" style="margin-top:10px;">Rollen-Zuordnungen werden pro Rang und Team unter <a href="<?= url('ranks.php') ?>" style="color:var(--accent);">Ränge</a> bzw. <a href="<?= url('teams.php') ?>" style="color:var(--accent);">Teams</a> festgelegt.
-  <strong>Mitglieder synchronisieren</strong> importiert nur Server-Mitglieder mit der unten konfigurierten „Team"-Rolle (ohne Zuordnung: alle Mitglieder).
-  <strong>Rang/Team → Discord-Rollen</strong> überträgt den in der Teamverwaltung gesetzten Rang/Team als Discord-Rolle.
-  <strong>Discord-Rollen → Rang</strong> macht es umgekehrt: anhand der aktuellen Discord-Rollen eines Mitglieds wird der Rang in der Teamverwaltung ggf. hochgestuft (nie automatisch heruntergestuft) — das passiert außerdem automatisch bei jeder Discord-Anmeldung.</p>
+  <p class="field-hint" style="margin-top:10px;">Rollen-Zuordnungen werden pro Rang und Team unter <a href="<?= url('ranks.php') ?>" style="color:var(--accent);">Ränge</a> bzw. <a href="<?= url('teams.php') ?>" style="color:var(--accent);">Teams</a> festgelegt. Die unten konfigurierte „Team"-Rolle ist dabei Voraussetzung: nur Mitglieder, die diese Rolle bereits auf Discord haben, werden überhaupt synchronisiert — in beide Richtungen.
+  <strong>Mitglieder synchronisieren</strong> importiert nur Server-Mitglieder mit der „Team"-Rolle (ohne Zuordnung: alle Mitglieder).
+  <strong>Rang/Team → Discord-Rollen</strong> überträgt den in der Teamverwaltung gesetzten Rang/Team als Discord-Rolle — aber nur an Mitglieder, die die „Team"-Rolle bereits haben; die „Team"-Rolle selbst vergibt die Teamverwaltung nie, die bleibt reine Discord-Pflege.
+  <strong>Discord-Rollen → Rang</strong> macht es umgekehrt: anhand der aktuellen Discord-Rollen eines Mitglieds mit „Team"-Rolle wird der Rang in der Teamverwaltung ggf. hochgestuft (nie automatisch heruntergestuft) — das passiert außerdem automatisch bei jeder Discord-Anmeldung.</p>
   <?php if ($roles): ?>
     <h3 style="margin-top:18px;">Server-Rollen gefunden</h3>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">
@@ -176,7 +176,7 @@ require __DIR__ . '/includes/header.php';
     <input type="hidden" name="action" value="save_extra_roles">
     <div class="form-row">
       <div class="field">
-        <label>„Team“ – wird jedem aktiven, verknüpften Mitglied automatisch zusätzlich zu seinem Rang gesetzt</label>
+        <label>„Team“ – Voraussetzung für Sync &amp; Rollenzuweisung; wird nie von der Teamverwaltung vergeben/entfernt</label>
         <?php if ($roles): ?>
         <select name="extra_role_team">
           <option value="">– keine –</option>

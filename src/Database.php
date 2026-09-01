@@ -104,13 +104,26 @@ class DB
 
         $extraRolesCount = (int) $db->query("SELECT COUNT(*) c FROM discord_extra_roles")->fetch()['c'];
         if ($extraRolesCount === 0) {
-            $stmt = $db->prepare("INSERT INTO discord_extra_roles (slug, label, discord_role_id, auto_assign) VALUES (?, ?, NULL, ?)");
-            // "Team": allgemeine Teamgruppe – wird jedem aktiven, verknüpften Mitglied automatisch zusätzlich zu seinem Rang gesetzt.
-            $stmt->execute(['team', 'Team', 1]);
+            $stmt = $db->prepare("INSERT INTO discord_extra_roles (slug, label, discord_role_id, auto_assign) VALUES (?, ?, ?, ?)");
+            // "Team": Mitgliedschaft wird ausschließlich manuell in Discord gepflegt, NIE von der
+            // Teamverwaltung vergeben/entfernt (auto_assign=0) — dient nur als Voraussetzung:
+            // Rang-Rollen werden über das Dashboard nur an Personen mit dieser Rolle zugewiesen,
+            // und nur Personen mit dieser Rolle werden überhaupt synchronisiert (Mitglieder-Import,
+            // Discord→Rang-Sync). Bekannte Rollen-ID direkt vorbelegt, per UI unter
+            // Discord & Einstellungen änderbar.
+            $stmt->execute(['team', 'Team', '1520871424871633036', 0]);
             // "High-Team": wird NIE automatisch vergeben/entfernt (nur manuell in Discord gepflegt),
             // aber der aktuelle Status wird beim Rollen-Sync gelesen und in users.is_high_team gespiegelt.
-            $stmt->execute(['high_team', 'High-Team', 0]);
+            $stmt->execute(['high_team', 'High-Team', null, 0]);
         }
+
+        // "Team" wurde ursprünglich automatisch vergeben (auto_assign=1) — das ist jetzt bewusst
+        // deaktiviert (siehe oben), Bestandsinstallationen einmalig nachziehen. Die Rollen-ID wird
+        // nur nachgetragen, falls noch keine gesetzt ist (ein bereits per UI gewählter Wert bleibt
+        // unangetastet).
+        $db->exec("UPDATE discord_extra_roles SET auto_assign = 0 WHERE slug = 'team'");
+        $db->prepare("UPDATE discord_extra_roles SET discord_role_id = ? WHERE slug = 'team' AND discord_role_id IS NULL")
+            ->execute(['1520871424871633036']);
 
         $db->exec("CREATE TABLE IF NOT EXISTS meetings (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,

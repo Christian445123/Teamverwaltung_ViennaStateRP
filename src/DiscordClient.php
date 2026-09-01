@@ -149,6 +149,13 @@ class DiscordClient
             return ['ok' => false, 'error' => 'Nutzer nicht im Discord-Server gefunden.'];
         }
 
+        // Rang-/Team-Rollen werden über das Dashboard nur zugewiesen, wenn die Person auf
+        // Discord bereits die "Team"-Rolle hat. Die "Team"-Rolle selbst vergibt die
+        // Teamverwaltung nie — die wird ausschließlich manuell in Discord gepflegt.
+        if (!self::memberHasTeamRole($member)) {
+            return ['ok' => false, 'error' => 'Nutzer hat nicht die "Team"-Rolle auf Discord — keine Rollenzuweisung.'];
+        }
+
         $managedRoleIds = self::managedRoleIds();
         $currentRoles = $member['roles'] ?? [];
         $keptRoles = array_values(array_diff($currentRoles, $managedRoleIds));
@@ -158,7 +165,8 @@ class DiscordClient
         $team = $user['team_id'] ? self::teamRoleId($user['team_id']) : null;
         if ($rank) $desiredExtra[] = $rank;
         if ($team) $desiredExtra[] = $team;
-        // Auto-vergebene Zusatzrollen (z. B. "Team") bekommt jedes aktive, verknüpfte Mitglied zusätzlich.
+        // Auto-vergebene Zusatzrollen (aktuell keine — "Team" wird bewusst nie automatisch
+        // vergeben, siehe oben) kämen hier zusätzlich dazu.
         foreach (self::autoAssignExtraRoleIds() as $extraRoleId) {
             $desiredExtra[] = $extraRoleId;
         }
@@ -212,12 +220,30 @@ class DiscordClient
         ];
     }
 
+    /**
+     * Lädt den Discord-Member für eine der Pull-Operationen (Rang, High-Team) — gibt
+     * absichtlich null zurück, wenn die Person nicht (mehr) die "Team"-Rolle hat: es soll
+     * niemand synchronisiert werden, der auf Discord nicht (mehr) im Team ist.
+     */
     private static function fetchMemberForPull(array $user): ?array
     {
         if (empty($user['discord_id']) || !self::botHeaders() || !Settings::get('discord_guild_id')) {
             return null;
         }
-        return self::getGuildMember($user['discord_id']);
+        $member = self::getGuildMember($user['discord_id']);
+        if ($member === null || !self::memberHasTeamRole($member)) {
+            return null;
+        }
+        return $member;
+    }
+
+    private static function memberHasTeamRole(array $member): bool
+    {
+        $teamRoleId = DB::get()->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'team'")->fetchColumn();
+        if (!$teamRoleId) {
+            return true; // "Team"-Rolle noch nicht zugeordnet → Gate deaktiviert (altes Verhalten)
+        }
+        return in_array($teamRoleId, $member['roles'] ?? [], true);
     }
 
     private static function applyRankFromMember(array $user, array $member): array
@@ -264,9 +290,9 @@ class DiscordClient
         foreach ($db->query("SELECT discord_role_id FROM teams WHERE discord_role_id IS NOT NULL AND discord_role_id != ''")->fetchAll() as $r) {
             $ids[] = $r['discord_role_id'];
         }
-        // Nur auto-vergebene Zusatzrollen (z. B. "Team") gehören zum verwalteten Set.
-        // Rollen mit auto_assign=0 (z. B. "High-Team") werden bewusst NIE angefasst —
-        // weder vergeben noch entfernt, siehe autoAssignExtraRoleIds().
+        // Nur Zusatzrollen mit auto_assign=1 gehören zum verwalteten Set. "Team" und
+        // "High-Team" haben beide auto_assign=0 und werden bewusst NIE angefasst — weder
+        // vergeben noch entfernt, siehe autoAssignExtraRoleIds() / memberHasTeamRole().
         foreach (self::autoAssignExtraRoleIds() as $extraRoleId) {
             $ids[] = $extraRoleId;
         }
