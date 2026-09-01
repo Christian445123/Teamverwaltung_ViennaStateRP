@@ -36,8 +36,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($activeUsers as $u) {
             $result = DiscordClient::syncRolesForUser($u);
             if ($result['ok']) $count++;
+            usleep(300000);
         }
         flash('success', "Discord-Rollen für {$count} Mitglieder synchronisiert.");
+    } elseif ($action === 'sync_ranks_from_discord') {
+        $activeUsers = $db->query("SELECT * FROM users WHERE status='active' AND discord_id IS NOT NULL")->fetchAll();
+        $checked = 0;
+        $upgraded = [];
+        foreach ($activeUsers as $u) {
+            $checked++;
+            $result = DiscordClient::syncRankFromDiscord($u);
+            if (!empty($result['changed'])) {
+                $upgraded[] = $u['display_name'] . ' → ' . $result['rank']['name'];
+            }
+            usleep(300000);
+        }
+        flash('success', $upgraded
+            ? "Geprüft: {$checked}. Hochgestuft: " . implode(', ', $upgraded)
+            : "Geprüft: {$checked}. Keine Hochstufungen nötig, alle Ränge sind aktuell.");
     }
     redirect(url('settings.php'));
 }
@@ -102,10 +118,17 @@ require __DIR__ . '/includes/header.php';
     <form method="post" data-confirm="Discord-Rollen für alle verknüpften Mitglieder anhand von Rang/Team setzen?">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="sync_all_roles">
-      <button class="btn secondary" type="submit">Discord-Rollen für alle synchronisieren</button>
+      <button class="btn secondary" type="submit">Rang/Team → Discord-Rollen setzen</button>
+    </form>
+    <form method="post" data-confirm="Ränge aller verknüpften Mitglieder anhand ihrer aktuellen Discord-Rollen hochstufen?">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="sync_ranks_from_discord">
+      <button class="btn secondary" type="submit">Discord-Rollen → Rang übernehmen</button>
     </form>
   </div>
-  <p class="field-hint" style="margin-top:10px;">Rollen-Zuordnungen werden pro Rang und Team unter <a href="<?= url('ranks.php') ?>" style="color:var(--accent);">Ränge</a> bzw. <a href="<?= url('teams.php') ?>" style="color:var(--accent);">Teams</a> festgelegt.</p>
+  <p class="field-hint" style="margin-top:10px;">Rollen-Zuordnungen werden pro Rang und Team unter <a href="<?= url('ranks.php') ?>" style="color:var(--accent);">Ränge</a> bzw. <a href="<?= url('teams.php') ?>" style="color:var(--accent);">Teams</a> festgelegt.
+  <strong>Rang/Team → Discord-Rollen</strong> überträgt den in der Teamverwaltung gesetzten Rang/Team als Discord-Rolle.
+  <strong>Discord-Rollen → Rang</strong> macht es umgekehrt: anhand der aktuellen Discord-Rollen eines Mitglieds wird der Rang in der Teamverwaltung ggf. hochgestuft (nie automatisch heruntergestuft) — das passiert außerdem automatisch bei jeder Discord-Anmeldung.</p>
   <?php if ($roles): ?>
     <h3 style="margin-top:18px;">Server-Rollen gefunden</h3>
     <div style="display:flex;flex-wrap:wrap;gap:6px;">

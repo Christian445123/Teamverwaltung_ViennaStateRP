@@ -174,6 +174,56 @@ class DiscordClient
         return ['ok' => $result['ok'], 'changed' => true, 'error' => $result['ok'] ? null : ($result['data']['message'] ?? 'Unbekannter Fehler')];
     }
 
+    /**
+     * Umgekehrte Richtung zu syncRolesForUser(): ermittelt aus den aktuellen Discord-Rollen
+     * eines Nutzers den höchststufigen zugeordneten Rang (ranks.discord_role_id) und stuft den
+     * Nutzer dorthin hoch, falls dessen aktueller Rang niedriger ist. Stuft nie automatisch
+     * herunter — eine (versehentlich) entfernte Discord-Rolle soll niemanden stillschweigend
+     * degradieren, das bleibt eine bewusste Admin-Aktion.
+     */
+    public static function syncRankFromDiscord(array $user): array
+    {
+        if (empty($user['discord_id']) || !self::botHeaders() || !Settings::get('discord_guild_id')) {
+            return ['ok' => false, 'changed' => false];
+        }
+
+        $member = self::getGuildMember($user['discord_id']);
+        if (!$member) {
+            return ['ok' => false, 'changed' => false];
+        }
+
+        $resolved = self::resolveRankFromRoleIds($member['roles'] ?? []);
+        if (!$resolved) {
+            return ['ok' => true, 'changed' => false];
+        }
+
+        $currentLevel = 0;
+        if (!empty($user['rank_id'])) {
+            $stmt = DB::get()->prepare("SELECT level FROM ranks WHERE id = ?");
+            $stmt->execute([$user['rank_id']]);
+            $currentLevel = (int) ($stmt->fetchColumn() ?: 0);
+        }
+
+        if ((int) $resolved['level'] <= $currentLevel) {
+            return ['ok' => true, 'changed' => false];
+        }
+
+        DB::get()->prepare("UPDATE users SET rank_id = ? WHERE id = ?")->execute([$resolved['id'], $user['id']]);
+
+        return ['ok' => true, 'changed' => true, 'rank' => $resolved];
+    }
+
+    /** Höchststufiger Rang, dessen discord_role_id in der übergebenen Rollen-Liste enthalten ist. */
+    public static function resolveRankFromRoleIds(array $discordRoleIds): ?array
+    {
+        if (empty($discordRoleIds)) return null;
+
+        $placeholders = implode(',', array_fill(0, count($discordRoleIds), '?'));
+        $stmt = DB::get()->prepare("SELECT * FROM ranks WHERE discord_role_id IN ({$placeholders}) ORDER BY level DESC LIMIT 1");
+        $stmt->execute(array_values($discordRoleIds));
+        return $stmt->fetch() ?: null;
+    }
+
     private static function managedRoleIds(): array
     {
         $db = DB::get();

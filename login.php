@@ -42,16 +42,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$discordAvailable = Settings::isDiscordConfigured();
+
 $pageTitle = $setupMode ? 'Ersteinrichtung' : 'Anmelden';
 require __DIR__ . '/includes/header.php';
 ?>
 <div class="auth-card">
   <h1><?= $setupMode ? 'Ersteinrichtung' : 'Anmelden' ?></h1>
-  <?php if ($setupMode): ?>
+  <?php if ($setupMode && $discordAvailable): ?>
+    <p class="text-muted" style="text-align:center;margin-top:-10px;">Mit Discord anmelden, um automatisch das erste Administrator-Konto zu erstellen — oder unten manuell eines anlegen.</p>
+  <?php elseif ($setupMode): ?>
     <p class="text-muted" style="text-align:center;margin-top:-10px;">Erstelle das erste Administrator-Konto für deine Teamverwaltung.</p>
   <?php endif; ?>
 
   <?php if ($error): ?><div class="flash flash-error"><?= e($error) ?></div><?php endif; ?>
+
+  <?php if ($discordAvailable): ?>
+  <a class="btn discord" style="width:100%;justify-content:center;" href="<?= url('discord_login.php') ?>">
+    Mit Discord anmelden
+  </a>
+  <div class="divider"><?= $setupMode ? 'oder manuell einrichten' : 'oder' ?></div>
+  <?php endif; ?>
 
   <form method="post">
     <?= csrf_field() ?>
@@ -73,12 +84,5 @@ require __DIR__ . '/includes/header.php';
       <?= $setupMode ? 'Konto erstellen' : 'Anmelden' ?>
     </button>
   </form>
-
-  <?php if (!$setupMode && Settings::isDiscordConfigured()): ?>
-  <div class="divider">oder</div>
-  <a class="btn discord" style="width:100%;justify-content:center;" href="<?= url('discord_login.php') ?>">
-    Mit Discord anmelden
-  </a>
-  <?php endif; ?>
 </div>
 <?php require __DIR__ . '/includes/footer.php'; ?>

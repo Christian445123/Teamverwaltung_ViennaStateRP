@@ -84,7 +84,7 @@ require __DIR__ . '/includes/header.php';
           <?php endforeach; ?>
         </div>
         <div class="field">
-          <label>Discord-Rolle (automatische Vergabe)</label>
+          <label>Discord-Rolle (bidirektionale Zuordnung)</label>
           <?php if ($discordRoles): ?>
           <select name="discord_role_id">
             <option value="">– keine –</option>
