@@ -42,10 +42,13 @@ if ($linkMode) {
     $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$me['id']]);
     $linkedUser = $stmt->fetch();
-    $rankSync = DiscordClient::syncRankFromDiscord($linkedUser);
+    $pull = DiscordClient::pullFromDiscord($linkedUser);
 
-    flash('success', 'Dein Discord-Account wurde verknüpft.'
-        . (!empty($rankSync['changed']) ? ' Dein Rang wurde anhand deiner Discord-Rollen auf "' . $rankSync['rank']['name'] . '" gesetzt.' : ''));
+    $extraMsg = '';
+    if (!empty($pull['rank']['changed'])) {
+        $extraMsg .= ' Dein Rang wurde anhand deiner Discord-Rollen auf "' . $pull['rank']['rank']['name'] . '" gesetzt.';
+    }
+    flash('success', 'Dein Discord-Account wurde verknüpft.' . $extraMsg);
     redirect(url('profile.php'));
 }
 
@@ -75,12 +78,14 @@ if (!$user) {
     $stmt->execute([$discordUser['username'], $discordUser['avatar'], $user['id']]);
 }
 
-$rankSync = DiscordClient::syncRankFromDiscord($user);
-if (!empty($rankSync['changed'])) {
+$pull = DiscordClient::pullFromDiscord($user);
+if (!empty($pull['rank']['changed']) || !empty($pull['highTeam']['changed'])) {
     $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$user['id']]);
     $user = $stmt->fetch();
-    flash('success', 'Dein Rang wurde anhand deiner Discord-Rollen auf "' . $rankSync['rank']['name'] . '" gesetzt.');
+    if (!empty($pull['rank']['changed'])) {
+        flash('success', 'Dein Rang wurde anhand deiner Discord-Rollen auf "' . $pull['rank']['rank']['name'] . '" gesetzt.');
+    }
 }
 
 Auth::login($user);

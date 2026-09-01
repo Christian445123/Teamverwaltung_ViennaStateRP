@@ -43,22 +43,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $activeUsers = $db->query("SELECT * FROM users WHERE status='active' AND discord_id IS NOT NULL")->fetchAll();
         $checked = 0;
         $upgraded = [];
+        $highTeamChanges = 0;
         foreach ($activeUsers as $u) {
             $checked++;
-            $result = DiscordClient::syncRankFromDiscord($u);
-            if (!empty($result['changed'])) {
-                $upgraded[] = $u['display_name'] . ' → ' . $result['rank']['name'];
+            $result = DiscordClient::pullFromDiscord($u);
+            if (!empty($result['rank']['changed'])) {
+                $upgraded[] = $u['display_name'] . ' → ' . $result['rank']['rank']['name'];
+            }
+            if (!empty($result['highTeam']['changed'])) {
+                $highTeamChanges++;
             }
             usleep(300000);
         }
-        flash('success', $upgraded
+        $msg = $upgraded
             ? "Geprüft: {$checked}. Hochgestuft: " . implode(', ', $upgraded)
-            : "Geprüft: {$checked}. Keine Hochstufungen nötig, alle Ränge sind aktuell.");
+            : "Geprüft: {$checked}. Keine Rang-Hochstufungen nötig.";
+        if ($highTeamChanges > 0) {
+            $msg .= " High-Team-Status bei {$highTeamChanges} Mitglied(ern) aktualisiert.";
+        }
+        flash('success', $msg);
+    } elseif ($action === 'save_extra_roles') {
+        $stmt = $db->prepare("UPDATE discord_extra_roles SET discord_role_id = ? WHERE slug = ?");
+        foreach (['team', 'high_team'] as $slug) {
+            $roleId = trim($_POST['extra_role_' . $slug] ?? '');
+            $stmt->execute([$roleId ?: null, $slug]);
+        }
+        flash('success', 'Zusatzrollen gespeichert.');
     }
     redirect(url('settings.php'));
 }
 
 $roles = Settings::isBotConfigured() ? DiscordClient::fetchGuildRoles() : [];
+$extraRoles = Settings::isBotConfigured() ? DiscordClient::extraRoles() : [];
+$extraRolesBySlug = [];
+foreach ($extraRoles as $er) { $extraRolesBySlug[$er['slug']] = $er; }
 
 function status_row(string $label, bool $ok, string $envVar): void {
     ?>
@@ -137,6 +155,45 @@ require __DIR__ . '/includes/header.php';
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
+</div>
+
+<div class="card settings-section">
+  <h2>Allgemeine Team-Rollen</h2>
+  <p class="text-muted" style="margin-top:-8px;">Zwei Discord-Rollen, die sich nicht auf einen einzelnen Rang oder ein Team beschränken.</p>
+  <form method="post">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="save_extra_roles">
+    <div class="form-row">
+      <div class="field">
+        <label>„Team“ – wird jedem aktiven, verknüpften Mitglied automatisch zusätzlich zu seinem Rang gesetzt</label>
+        <?php if ($roles): ?>
+        <select name="extra_role_team">
+          <option value="">– keine –</option>
+          <?php foreach ($roles as $r): if ($r['name'] === '@everyone') continue; ?>
+            <option value="<?= e($r['id']) ?>" <?= ($extraRolesBySlug['team']['discord_role_id'] ?? null) === $r['id'] ? 'selected' : '' ?>><?= e($r['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <?php else: ?>
+        <input type="text" name="extra_role_team" value="<?= e($extraRolesBySlug['team']['discord_role_id'] ?? '') ?>" placeholder="Discord Rollen-ID">
+        <?php endif; ?>
+      </div>
+      <div class="field">
+        <label>„High-Team“ – wird nie automatisch vergeben/entfernt, nur der Status wird übernommen</label>
+        <?php if ($roles): ?>
+        <select name="extra_role_high_team">
+          <option value="">– keine –</option>
+          <?php foreach ($roles as $r): if ($r['name'] === '@everyone') continue; ?>
+            <option value="<?= e($r['id']) ?>" <?= ($extraRolesBySlug['high_team']['discord_role_id'] ?? null) === $r['id'] ? 'selected' : '' ?>><?= e($r['name']) ?></option>
+          <?php endforeach; ?>
+        </select>
+        <?php else: ?>
+        <input type="text" name="extra_role_high_team" value="<?= e($extraRolesBySlug['high_team']['discord_role_id'] ?? '') ?>" placeholder="Discord Rollen-ID">
+        <?php endif; ?>
+      </div>
+    </div>
+    <button class="btn" type="submit">Speichern</button>
+  </form>
+  <p class="field-hint" style="margin-top:10px;">„High-Team“ wird bei jeder Discord-Anmeldung sowie über „Discord-Rollen → Rang übernehmen“ gelesen und als Badge bei den Mitgliedern angezeigt.</p>
 </div>
 <?php endif; ?>
 

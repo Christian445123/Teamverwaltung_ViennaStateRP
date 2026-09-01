@@ -158,6 +158,10 @@ class DiscordClient
         $team = $user['team_id'] ? self::teamRoleId($user['team_id']) : null;
         if ($rank) $desiredExtra[] = $rank;
         if ($team) $desiredExtra[] = $team;
+        // Auto-vergebene Zusatzrollen (z. B. "Team") bekommt jedes aktive, verknüpfte Mitglied zusätzlich.
+        foreach (self::autoAssignExtraRoleIds() as $extraRoleId) {
+            $desiredExtra[] = $extraRoleId;
+        }
 
         $newRoles = array_values(array_unique(array_merge($keptRoles, $desiredExtra)));
 
@@ -183,15 +187,41 @@ class DiscordClient
      */
     public static function syncRankFromDiscord(array $user): array
     {
+        $member = self::fetchMemberForPull($user);
+        if ($member === null) {
+            return ['ok' => false, 'changed' => false];
+        }
+        return self::applyRankFromMember($user, $member);
+    }
+
+    /**
+     * Führt syncRankFromDiscord() und syncHighTeamFlag() mit nur einer Discord-API-Abfrage
+     * zusammen aus. Bevorzugt gegenüber den Einzelmethoden, wenn ohnehin beides gebraucht wird
+     * (Login/Verknüpfung, Massen-Sync).
+     */
+    public static function pullFromDiscord(array $user): array
+    {
+        $member = self::fetchMemberForPull($user);
+        if ($member === null) {
+            return ['ok' => false, 'rank' => ['ok' => false, 'changed' => false], 'highTeam' => ['ok' => false, 'changed' => false]];
+        }
+        return [
+            'ok' => true,
+            'rank' => self::applyRankFromMember($user, $member),
+            'highTeam' => self::applyHighTeamFromMember($user, $member),
+        ];
+    }
+
+    private static function fetchMemberForPull(array $user): ?array
+    {
         if (empty($user['discord_id']) || !self::botHeaders() || !Settings::get('discord_guild_id')) {
-            return ['ok' => false, 'changed' => false];
+            return null;
         }
+        return self::getGuildMember($user['discord_id']);
+    }
 
-        $member = self::getGuildMember($user['discord_id']);
-        if (!$member) {
-            return ['ok' => false, 'changed' => false];
-        }
-
+    private static function applyRankFromMember(array $user, array $member): array
+    {
         $resolved = self::resolveRankFromRoleIds($member['roles'] ?? []);
         if (!$resolved) {
             return ['ok' => true, 'changed' => false];
@@ -234,7 +264,57 @@ class DiscordClient
         foreach ($db->query("SELECT discord_role_id FROM teams WHERE discord_role_id IS NOT NULL AND discord_role_id != ''")->fetchAll() as $r) {
             $ids[] = $r['discord_role_id'];
         }
+        // Nur auto-vergebene Zusatzrollen (z. B. "Team") gehören zum verwalteten Set.
+        // Rollen mit auto_assign=0 (z. B. "High-Team") werden bewusst NIE angefasst —
+        // weder vergeben noch entfernt, siehe autoAssignExtraRoleIds().
+        foreach (self::autoAssignExtraRoleIds() as $extraRoleId) {
+            $ids[] = $extraRoleId;
+        }
         return array_values(array_unique($ids));
+    }
+
+    private static function autoAssignExtraRoleIds(): array
+    {
+        $rows = DB::get()->query("SELECT discord_role_id FROM discord_extra_roles WHERE auto_assign = 1 AND discord_role_id IS NOT NULL AND discord_role_id != ''")->fetchAll();
+        return array_values(array_map(fn($r) => $r['discord_role_id'], $rows));
+    }
+
+    /** Alle konfigurierten Zusatzrollen (Team/High-Team) inkl. Metadaten, für die Einstellungen-UI. */
+    public static function extraRoles(): array
+    {
+        return DB::get()->query("SELECT * FROM discord_extra_roles ORDER BY slug ASC")->fetchAll();
+    }
+
+    /**
+     * Liest, ob ein Nutzer aktuell die "High-Team"-Rolle (oder eine andere mit auto_assign=0
+     * konfigurierte Zusatzrolle) in Discord hat, und spiegelt das in users.is_high_team —
+     * reine Lese-Synchronisierung, die Rolle selbst wird dabei nie verändert.
+     */
+    public static function syncHighTeamFlag(array $user): array
+    {
+        $member = self::fetchMemberForPull($user);
+        if ($member === null) {
+            return ['ok' => false, 'changed' => false];
+        }
+        return self::applyHighTeamFromMember($user, $member);
+    }
+
+    private static function applyHighTeamFromMember(array $user, array $member): array
+    {
+        $stmt = DB::get()->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'high_team'");
+        $highTeamRoleId = $stmt->fetchColumn();
+        if (!$highTeamRoleId) {
+            return ['ok' => true, 'changed' => false];
+        }
+
+        $hasRole = in_array($highTeamRoleId, $member['roles'] ?? [], true) ? 1 : 0;
+        if ($hasRole === (int) ($user['is_high_team'] ?? 0)) {
+            return ['ok' => true, 'changed' => false];
+        }
+
+        DB::get()->prepare("UPDATE users SET is_high_team = ? WHERE id = ?")->execute([$hasRole, $user['id']]);
+
+        return ['ok' => true, 'changed' => true, 'is_high_team' => (bool) $hasRole];
     }
 
     private static function rankRoleId(int $rankId): ?string

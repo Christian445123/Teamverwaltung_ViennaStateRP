@@ -58,7 +58,10 @@ require __DIR__ . '/includes/header.php';
       </div>
       <div class="field">
         <label>Rang</label>
-        <div><span class="badge" style="background:<?= e($rank['color'] ?? '#5865F2') ?>"><?= e($rank['name'] ?? 'Kein Rang') ?></span></div>
+        <div>
+          <span class="badge" style="background:<?= e($rank['color'] ?? '#5865F2') ?>"><?= e($rank['name'] ?? 'Kein Rang') ?></span>
+          <?php if (!empty($user['is_high_team'])): ?><span class="badge" style="background:#e8b86d;color:#2b2d31;">★ High-Team</span><?php endif; ?>
+        </div>
       </div>
       <button class="btn" type="submit">Speichern</button>
     </form>
