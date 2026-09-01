@@ -134,44 +134,75 @@ Weboberfläche — Status und Anleitung dazu auch direkt in der App unter
    / `DISCORD_CLIENT_SECRET` eintragen.
 3. Unter **OAuth2 → Redirects** genau folgende URL eintragen (ergibt sich aus
    `APP_URL`): `{APP_URL}/discord_callback.php`
-4. Unter **Bot** einen Bot erstellen, das *Bot Token* in `DISCORD_BOT_TOKEN`
+4. Unter **General Information** den *Public Key* in `DISCORD_PUBLIC_KEY` eintragen
+   und dort die *Interactions Endpoint URL* auf `{APP_URL}/discord_interactions.php`
+   setzen (Discord prüft die URL beim Speichern sofort — `DISCORD_PUBLIC_KEY` muss
+   also vorher gesetzt und die `.env` bereits deployt sein). Aktiviert Zu-/Absage-
+   Buttons direkt unter Besprechungs-Ankündigungen, ganz ohne Portal-Login.
+5. Unter **Bot** einen Bot erstellen, das *Bot Token* in `DISCORD_BOT_TOKEN`
    eintragen, und die **Server Members Intent** aktivieren (wird für den
    Mitglieder-Abgleich benötigt).
-5. Den Bot über den OAuth2-URL-Generator (Scopes: `bot`) mit folgenden Berechtigungen
+6. Den Bot über den OAuth2-URL-Generator (Scopes: `bot`) mit folgenden Berechtigungen
    auf den eigenen Server einladen: *Manage Roles*, *Manage Events*, *Send Messages*.
    Wichtig: Die Bot-Rolle muss in der Rollen-Hierarchie **über** allen Rollen stehen,
    die automatisch vergeben werden sollen.
-6. Die Server (Guild) ID in `DISCORD_GUILD_ID` eintragen (Rechtsklick auf den
+7. Die Server (Guild) ID in `DISCORD_GUILD_ID` eintragen (Rechtsklick auf den
    Servernamen in Discord mit aktiviertem Entwicklermodus).
-7. Optional `DISCORD_WEBHOOK_URL` (bevorzugt) oder `DISCORD_ANNOUNCE_CHANNEL_ID` für
+8. Optional `DISCORD_WEBHOOK_URL` (bevorzugt) oder `DISCORD_ANNOUNCE_CHANNEL_ID` für
    Besprechungs-Ankündigungen setzen.
+9. Unter **Discord & Einstellungen** in der App die Discord-Rollen für „Team" und
+   optional „High-Team" zuordnen (siehe unten) — „Team" bestimmt, wer per
+   „Mitglieder synchronisieren" importiert wird und wer auf Besprechungen
+   antworten darf.
 
 Danach stehen zur Verfügung:
 
 - **Login mit Discord** (OAuth2) auf der Anmeldeseite bzw. Verknüpfung im eigenen Profil
-- **Mitglieder aus Discord synchronisieren** (importiert Server-Mitglieder als
-  Teamverwaltung-Mitglieder, Button unter *Discord & Einstellungen*)
-- **Automatische Rollenvergabe**: jedem Rang und jedem Team kann eine Discord-Rolle
-  zugeordnet werden (unter *Ränge* bzw. *Teams*); bei Änderung des Rangs/Teams eines
-  Mitglieds (oder manuell per Klick) werden die zugeordneten Discord-Rollen gesetzt.
-  Es werden ausschließlich Rollen angefasst, die einem Rang/Team zugeordnet sind —
-  alle anderen Discord-Rollen eines Mitglieds bleiben unangetastet.
+  — der Button ist immer sichtbar, auch bei der Ersteinrichtung (erster Discord-Login
+  wird automatisch Super-Administrator).
+- **Mitglieder aus Discord synchronisieren**: importiert nur Server-Mitglieder mit der
+  Discord-Rolle „Team" als Teamverwaltung-Mitglieder (Button unter *Discord &
+  Einstellungen*; ohne zugeordnete „Team"-Rolle werden alle Server-Mitglieder importiert).
+- **Automatische Rollenvergabe in beide Richtungen**:
+  - *Rang/Team → Discord*: jedem Rang und jedem Team kann eine Discord-Rolle zugeordnet
+    werden (unter *Ränge* bzw. *Teams*); bei Änderung des Rangs/Teams eines Mitglieds
+    (oder manuell per Klick) werden die zugeordneten Discord-Rollen gesetzt. Zusätzlich
+    bekommt jedes aktive, verknüpfte Mitglied automatisch die allgemeine „Team"-Rolle.
+    Es werden ausschließlich Rollen angefasst, die einem Rang/Team/„Team" zugeordnet
+    sind — alle anderen Discord-Rollen eines Mitglieds bleiben unangetastet.
+  - *Discord → Rang*: beim Discord-Login (und per Massen-Sync) wird der Rang anhand der
+    aktuellen Discord-Rollen ggf. hochgestuft, nie automatisch heruntergestuft.
+  - „High-Team" ist ein Sonderfall: wird nie automatisch vergeben/entfernt, nur der
+    aktuelle Status wird gelesen und als Badge angezeigt (`users.is_high_team`).
 - **Besprechungen**: beim Erstellen können optional eine Ankündigung in einen Discord-
   Channel (per Webhook oder Bot) gepostet und ein natives Discord Scheduled Event
   erstellt werden, das bei Bearbeitung/Absage automatisch mit aktualisiert wird.
+- **Zu-/Absagen direkt in Discord, ohne Portal-Login**: ist `DISCORD_PUBLIC_KEY`
+  gesetzt, hat die Ankündigungs-Nachricht Zusagen/Vielleicht/Absagen-Buttons
+  (`discord_interactions.php`). Ein Klick beantwortet die Besprechung sofort — legt bei
+  Bedarf automatisch ein minimales Mitgliedskonto an, prüft die „Team"-Rolle sowie die
+  Berechtigung `meetings.respond` und antwortet ephemeral (nur für den Klickenden
+  sichtbar) mit einer Bestätigung.
 
 Discord-Funktionen sind komplett optional — ohne Konfiguration funktioniert die
 Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
 
 ## Berechtigungen
 
-Berechtigungen werden über **Ränge** vergeben (Verwaltung unter *Ränge*):
+Berechtigungen werden über **Ränge** vergeben (Verwaltung unter *Ränge*) — jede
+Berechtigung ist unabhängig pro Rang als Checkbox togglebar, keine ist fest verdrahtet:
 
 - `members.manage` – Mitglieder anlegen/bearbeiten/deaktivieren
 - `meetings.manage` – Besprechungen anlegen/bearbeiten/absagen
+- `meetings.respond` – auf Besprechungen antworten (Zu-/Vielleicht/Absagen), sowohl im
+  Portal als auch über die Discord-Buttons
 - `teams.manage` – Teams verwalten
 - `ranks.manage` – Ränge & Berechtigungen verwalten
 - `discord.manage` – Discord-Sync auslösen (Einstellungen selbst kommen aus `.env`)
+
+Neue Berechtigungen fügt man in `src/Perm.php` (`Perm::all()`) hinzu — der Rang-Editor
+(`ranks.php`) und alle Prüfungen (`Perm::has()`) sind vollständig generisch und zeigen
+jede dort gelistete Berechtigung automatisch als Checkbox an.
 
 Das bei der Ersteinrichtung angelegte Konto ist immer Super-Administrator und hat
 unabhängig vom zugewiesenen Rang alle Rechte.
@@ -181,6 +212,7 @@ unabhängig vom zugewiesenen Rang alle Rechte.
 ```
 bootstrap.php     Zentrales Bootstrapping (Session, .env, DB, Klassen, setzt APP_BOOTSTRAPPED)
 index.php, login.php, meetings.php, …   Aufrufbare Seiten, liegen direkt im Root (wie bei Website)
+discord_interactions.php   Discord-Button-Endpunkt (RSVP ohne Login), von Discord direkt aufgerufen
 assets/           CSS/JS, öffentlich
 src/              PHP-Klassen (Env, DB, Auth, Perm, Settings, DiscordClient) – per APP_BOOTSTRAPPED-Guard geschützt
 includes/         Layout-Header/Footer – per APP_BOOTSTRAPPED-Guard geschützt

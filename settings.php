@@ -9,10 +9,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'sync_members') {
         $members = DiscordClient::fetchGuildMembers();
-        $created = 0; $matched = 0;
+        $teamRoleId = $db->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'team'")->fetchColumn();
+        $created = 0; $matched = 0; $skipped = 0;
         $lowestRank = $db->query("SELECT id FROM ranks ORDER BY level ASC LIMIT 1")->fetchColumn();
         foreach ($members as $m) {
             if (empty($m['user']) || !empty($m['user']['bot'])) continue;
+            if ($teamRoleId && !in_array($teamRoleId, $m['roles'] ?? [], true)) { $skipped++; continue; }
             $discordId = $m['user']['id'];
             $stmt = $db->prepare("SELECT id FROM users WHERE discord_id = ?");
             $stmt->execute([$discordId]);
@@ -29,7 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $created++;
             }
         }
-        flash('success', "Sync abgeschlossen: {$created} neue, {$matched} aktualisierte Mitglieder.");
+        $msg = "Sync abgeschlossen: {$created} neue, {$matched} aktualisierte Mitglieder.";
+        if ($teamRoleId) {
+            $msg .= " {$skipped} ohne \"Team\"-Rolle übersprungen.";
+        } else {
+            $msg .= ' Hinweis: „Team"-Rolle ist nicht zugeordnet, es wurden alle Server-Mitglieder importiert.';
+        }
+        flash('success', $msg);
     } elseif ($action === 'sync_all_roles') {
         $activeUsers = $db->query("SELECT * FROM users WHERE status='active' AND discord_id IS NOT NULL")->fetchAll();
         $count = 0;
@@ -104,12 +112,13 @@ require __DIR__ . '/includes/header.php';
   <?php status_row('App-URL', (bool) Settings::get('app_url'), 'APP_URL'); ?>
   <?php status_row('Discord Client ID', (bool) Settings::get('discord_client_id'), 'DISCORD_CLIENT_ID'); ?>
   <?php status_row('Discord Client Secret', (bool) Settings::get('discord_client_secret'), 'DISCORD_CLIENT_SECRET'); ?>
+  <?php status_row('Discord Public Key (Buttons ohne Login)', (bool) Settings::get('discord_public_key'), 'DISCORD_PUBLIC_KEY'); ?>
   <?php status_row('Discord Bot-Token', (bool) Settings::get('discord_bot_token'), 'DISCORD_BOT_TOKEN'); ?>
   <?php status_row('Discord Server (Guild) ID', (bool) Settings::get('discord_guild_id'), 'DISCORD_GUILD_ID'); ?>
   <?php status_row('Ankündigungs-Webhook', (bool) Settings::get('discord_webhook_url'), 'DISCORD_WEBHOOK_URL'); ?>
   <?php status_row('Ankündigungs-Channel-ID', (bool) Settings::get('discord_announce_channel_id'), 'DISCORD_ANNOUNCE_CHANNEL_ID'); ?>
 
-  <p class="field-hint" style="margin-top:14px;">Redirect-URI für das Discord Developer Portal: <code><?= e(DiscordClient::redirectUri()) ?></code></p>
+  <p class="field-hint" style="margin-top:14px;">Redirect-URI für das Discord Developer Portal: <code><?= e(DiscordClient::redirectUri()) ?></code><br>Interactions Endpoint URL (für Zu-/Absage-Buttons ohne Login): <code><?= e(Settings::appUrl() . '/discord_interactions.php') ?></code></p>
 </div>
 
 <div class="card settings-section">
@@ -117,6 +126,7 @@ require __DIR__ . '/includes/header.php';
   <ol style="padding-left:20px;line-height:1.9;">
     <li>Im <a href="https://discord.com/developers/applications" target="_blank" style="color:var(--accent);">Discord Developer Portal</a> eine Anwendung erstellen, <em>Client ID</em> &amp; <em>Client Secret</em> in die <code>.env</code> eintragen.</li>
     <li>Dort unter <em>OAuth2 → Redirects</em> genau <code><?= e(DiscordClient::redirectUri()) ?></code> hinterlegen.</li>
+    <li>Unter <em>General Information</em> den <em>Public Key</em> kopieren und als <code>DISCORD_PUBLIC_KEY</code> eintragen; dort auch die <em>Interactions Endpoint URL</em> auf <code><?= e(Settings::appUrl() . '/discord_interactions.php') ?></code> setzen (Discord prüft die URL beim Speichern sofort per Ping — <code>DISCORD_PUBLIC_KEY</code> muss also vorher gesetzt sein). Aktiviert die Zu-/Absage-Buttons direkt unter Besprechungs-Ankündigungen, ganz ohne Portal-Login.</li>
     <li>Unter <em>Bot</em> einen Bot erstellen (Token in <code>DISCORD_BOT_TOKEN</code>), <em>Server Members Intent</em> aktivieren, und mit den Rechten <em>Manage Roles</em>, <em>Manage Events</em>, <em>Send Messages</em> auf den Server einladen (Bot-Rolle muss über den zu vergebenden Rollen stehen).</li>
     <li>Server-ID in <code>DISCORD_GUILD_ID</code> eintragen.</li>
     <li>Optional: <code>DISCORD_WEBHOOK_URL</code> oder <code>DISCORD_ANNOUNCE_CHANNEL_ID</code> für Besprechungs-Ankündigungen setzen.</li>
@@ -128,7 +138,7 @@ require __DIR__ . '/includes/header.php';
 <div class="card settings-section">
   <h2>Mitglieder &amp; Rollen</h2>
   <div class="btn-row">
-    <form method="post" data-confirm="Mitglieder aus Discord importieren/abgleichen?">
+    <form method="post" data-confirm="Mitglieder mit der &quot;Team&quot;-Rolle aus Discord importieren/abgleichen?">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="sync_members">
       <button class="btn secondary" type="submit">Mitglieder aus Discord synchronisieren</button>
@@ -145,6 +155,7 @@ require __DIR__ . '/includes/header.php';
     </form>
   </div>
   <p class="field-hint" style="margin-top:10px;">Rollen-Zuordnungen werden pro Rang und Team unter <a href="<?= url('ranks.php') ?>" style="color:var(--accent);">Ränge</a> bzw. <a href="<?= url('teams.php') ?>" style="color:var(--accent);">Teams</a> festgelegt.
+  <strong>Mitglieder synchronisieren</strong> importiert nur Server-Mitglieder mit der unten konfigurierten „Team"-Rolle (ohne Zuordnung: alle Mitglieder).
   <strong>Rang/Team → Discord-Rollen</strong> überträgt den in der Teamverwaltung gesetzten Rang/Team als Discord-Rolle.
   <strong>Discord-Rollen → Rang</strong> macht es umgekehrt: anhand der aktuellen Discord-Rollen eines Mitglieds wird der Rang in der Teamverwaltung ggf. hochgestuft (nie automatisch heruntergestuft) — das passiert außerdem automatisch bei jeder Discord-Anmeldung.</p>
   <?php if ($roles): ?>

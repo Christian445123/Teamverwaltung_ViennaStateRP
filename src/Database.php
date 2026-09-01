@@ -158,18 +158,18 @@ class DB
         // Namensbasiert & idempotent: fügt nur fehlende Ränge hinzu, rührt bestehende (inkl.
         // bereits zugewiesener discord_role_id oder Mitglieder) nicht an.
         $wantedRanks = [
-            ['Test-Supporter',      10, '#4ade80', []],
-            ['Supporter',           20, '#22c55e', []],
-            ['Moderator',           30, '#7c3aed', []],
-            ['Test-Developer',      40, '#06b6d4', []],
-            ['Developer',           50, '#0ea5e9', []],
-            ['Test-Admin',          60, '#f97316', ['meetings.manage']],
-            ['Admin',               70, '#ef4444', ['members.manage', 'meetings.manage']],
-            ['Stv. Teamleitung',    80, '#e879f9', ['members.manage', 'meetings.manage', 'teams.manage']],
-            ['Teamleitung',         90, '#d946ef', ['members.manage', 'meetings.manage', 'teams.manage']],
-            ['Stv. Projektleitung', 100, '#fb923c', ['members.manage', 'meetings.manage', 'teams.manage', 'ranks.manage']],
-            ['Projektleitung',      110, '#f59e0b', ['members.manage', 'meetings.manage', 'teams.manage', 'ranks.manage', 'discord.manage']],
-            ['Owner',               120, '#e8b86d', ['members.manage', 'meetings.manage', 'teams.manage', 'ranks.manage', 'discord.manage']],
+            ['Test-Supporter',      10, '#4ade80', ['meetings.respond']],
+            ['Supporter',           20, '#22c55e', ['meetings.respond']],
+            ['Moderator',           30, '#7c3aed', ['meetings.respond']],
+            ['Test-Developer',      40, '#06b6d4', ['meetings.respond']],
+            ['Developer',           50, '#0ea5e9', ['meetings.respond']],
+            ['Test-Admin',          60, '#f97316', ['meetings.manage', 'meetings.respond']],
+            ['Admin',               70, '#ef4444', ['members.manage', 'meetings.manage', 'meetings.respond']],
+            ['Stv. Teamleitung',    80, '#e879f9', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage']],
+            ['Teamleitung',         90, '#d946ef', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage']],
+            ['Stv. Projektleitung', 100, '#fb923c', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage', 'ranks.manage']],
+            ['Projektleitung',      110, '#f59e0b', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage', 'ranks.manage', 'discord.manage']],
+            ['Owner',               120, '#e8b86d', ['members.manage', 'meetings.manage', 'meetings.respond', 'teams.manage', 'ranks.manage', 'discord.manage']],
         ];
 
         $existingNames = $db->query("SELECT name FROM ranks")->fetchAll(PDO::FETCH_COLUMN);
@@ -177,6 +177,19 @@ class DB
         foreach ($wantedRanks as [$name, $level, $color, $perms]) {
             if (!in_array($name, $existingNames, true)) {
                 $insertRank->execute([$name, $level, $color, json_encode($perms)]);
+            }
+        }
+
+        // "meetings.respond" wurde nachträglich als eigene Berechtigung eingeführt (vorher
+        // konnte jeder eingeloggte Nutzer ungeachtet seines Rangs antworten). Bei bereits
+        // bestehenden Rängen wird sie einmalig ergänzt, damit niemand durch die Umstellung
+        // stillschweigend die Antwort-Möglichkeit verliert — danach frei über die
+        // Rollenverwaltung einschränkbar.
+        foreach ($db->query("SELECT id, permissions FROM ranks")->fetchAll() as $r) {
+            $perms = json_decode($r['permissions'] ?? '[]', true) ?: [];
+            if (!in_array('meetings.respond', $perms, true)) {
+                $perms[] = 'meetings.respond';
+                $db->prepare("UPDATE ranks SET permissions = ? WHERE id = ?")->execute([json_encode($perms), $r['id']]);
             }
         }
 

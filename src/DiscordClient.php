@@ -390,7 +390,12 @@ class DiscordClient
         return $result['ok'];
     }
 
-    /** Post a message announcing a meeting, via webhook (preferred) or bot channel message. */
+    /**
+     * Post a message announcing a meeting, via webhook (preferred) or bot channel message.
+     * When a Discord Public Key is configured (interactions endpoint set up), the message gets
+     * Zusagen/Vielleicht/Absagen-Buttons, mit denen direkt in Discord geantwortet werden kann —
+     * ohne Portal-Login (siehe discord_interactions.php).
+     */
     public static function announceMeeting(array $meeting): ?string
     {
         $content = "📅 **Neue Besprechung:** {$meeting['title']}\n"
@@ -398,20 +403,37 @@ class DiscordClient
             . ($meeting['location'] ? "📍 {$meeting['location']}\n" : '')
             . ($meeting['description'] ? "\n{$meeting['description']}" : '');
 
+        $payload = ['content' => $content];
+        if (!empty($meeting['id']) && Settings::get('discord_public_key')) {
+            $payload['components'] = [self::rsvpActionRow((int) $meeting['id'])];
+        }
+
         $webhook = Settings::get('discord_webhook_url');
         if ($webhook) {
-            $result = self::request('POST', $webhook . '?wait=true', json_encode(['content' => $content]), ['Content-Type: application/json']);
+            $result = self::request('POST', $webhook . '?wait=true', json_encode($payload), ['Content-Type: application/json']);
             return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
         }
 
         $headers = self::botHeaders();
         $channelId = Settings::get('discord_announce_channel_id');
         if ($headers && $channelId) {
-            $result = self::request('POST', self::API . "/channels/{$channelId}/messages", json_encode(['content' => $content]), $headers);
+            $result = self::request('POST', self::API . "/channels/{$channelId}/messages", json_encode($payload), $headers);
             return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
         }
 
         return null;
+    }
+
+    private static function rsvpActionRow(int $meetingId): array
+    {
+        return [
+            'type' => 1, // Action Row
+            'components' => [
+                ['type' => 2, 'style' => 3, 'label' => 'Zusagen', 'emoji' => ['name' => '✅'], 'custom_id' => "rsvp:{$meetingId}:accepted"],
+                ['type' => 2, 'style' => 2, 'label' => 'Vielleicht', 'emoji' => ['name' => '❔'], 'custom_id' => "rsvp:{$meetingId}:maybe"],
+                ['type' => 2, 'style' => 4, 'label' => 'Absagen', 'emoji' => ['name' => '❌'], 'custom_id' => "rsvp:{$meetingId}:declined"],
+            ],
+        ];
     }
 
     private static function request(string $method, string $url, $body = null, array $headers = []): array

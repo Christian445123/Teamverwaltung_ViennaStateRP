@@ -12,8 +12,14 @@ if (!$meeting) {
     redirect(url('meetings.php'));
 }
 
+$canRespond = Perm::has($user, 'meetings.respond');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
+    if (!$canRespond) {
+        flash('error', 'Dir fehlt die Berechtigung, auf Besprechungen zu antworten.');
+        redirect(url('meeting_view.php?id=' . $id));
+    }
     $status = $_POST['rsvp_status'] ?? '';
     if (in_array($status, ['accepted', 'declined', 'maybe'], true)) {
         $stmt = $db->prepare("INSERT INTO meeting_attendees (meeting_id, user_id, status, responded_at) VALUES (?, ?, ?, NOW())
@@ -62,6 +68,9 @@ require __DIR__ . '/includes/header.php';
     <h2>Deine Rückmeldung</h2>
     <?php if ($meeting['status'] === 'cancelled'): ?>
       <p class="text-muted">Diese Besprechung wurde abgesagt.</p>
+    <?php elseif (!$canRespond): ?>
+      <p>Aktueller Status: <span class="badge rsvp-<?= e($myStatus) ?>"><?= $labels[$myStatus] ?></span></p>
+      <p class="text-muted">Dir fehlt die Berechtigung, auf Besprechungen zu antworten.</p>
     <?php else: ?>
       <p>Aktueller Status: <span class="badge rsvp-<?= e($myStatus) ?>"><?= $labels[$myStatus] ?></span></p>
       <form method="post" class="btn-row">

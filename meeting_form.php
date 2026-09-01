@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $discordMessageId = null;
         if ($announce) {
-            $discordMessageId = DiscordClient::announceMeeting($data);
+            $discordMessageId = DiscordClient::announceMeeting($data + ['id' => $meetingId]);
         }
         if ($discordEventId || $discordMessageId) {
             $db->prepare("UPDATE meetings SET discord_event_id=?, discord_message_id=? WHERE id=?")

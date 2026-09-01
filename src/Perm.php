@@ -30,6 +30,7 @@ class Perm
         return [
             'members.manage' => 'Mitglieder verwalten',
             'meetings.manage' => 'Besprechungen verwalten',
+            'meetings.respond' => 'Auf Besprechungen antworten (Zu-/Absagen)',
             'teams.manage' => 'Teams verwalten',
             'ranks.manage' => 'Ränge & Berechtigungen verwalten',
             'discord.manage' => 'Discord-Einstellungen verwalten',
