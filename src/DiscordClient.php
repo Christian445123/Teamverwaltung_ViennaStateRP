@@ -485,20 +485,64 @@ class DiscordClient
 
     /**
      * Post a message announcing a meeting, via webhook (preferred) or bot channel message.
-     * When a Discord Public Key is configured (interactions endpoint set up), the message gets
-     * Zusagen/Vielleicht/Absagen-Buttons, mit denen direkt in Discord geantwortet werden kann —
-     * ohne Portal-Login (siehe discord_interactions.php).
+     * Als Embed mit Vom/Bis/Ort/Thema/Inhalt-Feldern, pingt die Discord-Rollen aller
+     * eingeladenen Ränge (+ Team-Rolle bei team-gebundenen Besprechungen). Ist ein Discord
+     * Public Key konfiguriert (Interactions Endpoint eingerichtet), bekommt die Nachricht
+     * Teilnehmen/Vielleicht/Absagen-Buttons, mit denen direkt in Discord geantwortet werden
+     * kann — ohne Portal-Login (siehe discord_interactions.php). Ein "Zum Meeting"-Link-Button
+     * (führt ins Dashboard) wird immer angehängt.
      */
     public static function announceMeeting(array $meeting): ?string
     {
-        $content = "📅 **Neue Besprechung:** {$meeting['title']}\n"
-            . "🕒 " . date('d.m.Y H:i', strtotime($meeting['start_time'])) . " Uhr\n"
-            . ($meeting['location'] ? "📍 {$meeting['location']}\n" : '')
-            . ($meeting['description'] ? "\n{$meeting['description']}" : '');
+        $meetingId = (int) ($meeting['id'] ?? 0);
+        $start = strtotime($meeting['start_time']);
 
-        $payload = ['content' => $content];
-        if (!empty($meeting['id']) && Settings::get('discord_public_key')) {
-            $payload['components'] = [self::rsvpActionRow((int) $meeting['id'])];
+        $fields = [
+            ['name' => 'Vom', 'value' => date('d.m.Y H:i', $start) . ' Uhr', 'inline' => false],
+        ];
+        if (!empty($meeting['end_time'])) {
+            $fields[] = ['name' => 'Bis zum', 'value' => date('d.m.Y H:i', strtotime($meeting['end_time'])) . ' Uhr', 'inline' => false];
+        }
+        if (!empty($meeting['location'])) {
+            $fields[] = ['name' => 'Ort', 'value' => $meeting['location'], 'inline' => false];
+        }
+        $fields[] = ['name' => 'Thema', 'value' => $meeting['title'], 'inline' => false];
+        if (!empty($meeting['description'])) {
+            $fields[] = ['name' => 'Inhalt', 'value' => mb_substr($meeting['description'], 0, 1000), 'inline' => false];
+        }
+
+        $embed = [
+            'title' => '📅 Neue Besprechung',
+            'description' => "Es wurde eine neue Besprechung angesetzt. Wir freuen uns auf zahlreiche Teilnahme.\n\n"
+                . '*Du kannst deine Teilnahme entweder im Dashboard oder mit den Buttons unten bestätigen oder ablehnen.*',
+            'color' => 0x5865F2,
+            'fields' => $fields,
+            'footer' => ['text' => 'Teamverwaltung'],
+            'timestamp' => date('c'),
+        ];
+
+        $payload = ['embeds' => [$embed]];
+
+        $mentionRoleIds = $meetingId ? self::mentionRoleIdsForMeeting($meetingId) : [];
+        if ($mentionRoleIds) {
+            $payload['content'] = implode(' ', array_map(fn($id) => "<@&{$id}>", $mentionRoleIds));
+            $payload['allowed_mentions'] = ['parse' => [], 'roles' => $mentionRoleIds];
+        }
+
+        $components = [];
+        if ($meetingId && Settings::get('discord_public_key')) {
+            $components[] = self::rsvpActionRow($meetingId);
+        }
+        if ($meetingId) {
+            $components[] = [
+                'type' => 1,
+                'components' => [
+                    ['type' => 2, 'style' => 5, 'label' => 'Zum Meeting', 'url' => Settings::appUrl() . '/meeting_view.php?id=' . $meetingId],
+                ],
+            ];
+        }
+        if ($components) {
+            $payload['components'] = $components;
         }
 
         $webhook = Settings::get('discord_webhook_url');
@@ -517,12 +561,42 @@ class DiscordClient
         return null;
     }
 
+    /** Discord-Rollen-IDs der Ränge aller eingeladenen Teilnehmer plus ggf. die Team-Rolle — für die @-Erwähnung in der Ankündigung. */
+    private static function mentionRoleIdsForMeeting(int $meetingId): array
+    {
+        $db = DB::get();
+        $ids = [];
+
+        $stmt = $db->prepare("
+            SELECT DISTINCT r.discord_role_id
+            FROM meeting_attendees ma
+            JOIN users u ON u.id = ma.user_id
+            JOIN ranks r ON r.id = u.rank_id
+            WHERE ma.meeting_id = ? AND r.discord_role_id IS NOT NULL AND r.discord_role_id != ''
+        ");
+        $stmt->execute([$meetingId]);
+        foreach ($stmt->fetchAll() as $row) {
+            $ids[] = $row['discord_role_id'];
+        }
+
+        $stmt = $db->prepare("
+            SELECT t.discord_role_id
+            FROM meetings m JOIN teams t ON t.id = m.team_id
+            WHERE m.id = ? AND t.discord_role_id IS NOT NULL AND t.discord_role_id != ''
+        ");
+        $stmt->execute([$meetingId]);
+        $teamRole = $stmt->fetchColumn();
+        if ($teamRole) $ids[] = $teamRole;
+
+        return array_values(array_unique($ids));
+    }
+
     private static function rsvpActionRow(int $meetingId): array
     {
         return [
             'type' => 1, // Action Row
             'components' => [
-                ['type' => 2, 'style' => 3, 'label' => 'Zusagen', 'emoji' => ['name' => '✅'], 'custom_id' => "rsvp:{$meetingId}:accepted"],
+                ['type' => 2, 'style' => 3, 'label' => 'Teilnehmen', 'emoji' => ['name' => '✅'], 'custom_id' => "rsvp:{$meetingId}:accepted"],
                 ['type' => 2, 'style' => 2, 'label' => 'Vielleicht', 'emoji' => ['name' => '❔'], 'custom_id' => "rsvp:{$meetingId}:maybe"],
                 ['type' => 2, 'style' => 4, 'label' => 'Absagen', 'emoji' => ['name' => '❌'], 'custom_id' => "rsvp:{$meetingId}:declined"],
             ],

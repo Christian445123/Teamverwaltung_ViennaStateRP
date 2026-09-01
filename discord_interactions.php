@@ -1,6 +1,6 @@
 <?php
 /**
- * Discord Interactions Endpoint: verarbeitet Klicks auf die Zusagen/Vielleicht/Absagen-
+ * Discord Interactions Endpoint: verarbeitet Klicks auf die Teilnehmen/Vielleicht/Absagen-
  * Buttons unter Besprechungs-Ankündigungen — ganz ohne Portal-Login. Als "Interactions
  * Endpoint URL" im Discord Developer Portal eintragen (General Information → Public Key
  * dorthin kopieren als DISCORD_PUBLIC_KEY in die .env).

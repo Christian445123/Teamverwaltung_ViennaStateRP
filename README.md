@@ -182,9 +182,12 @@ Danach stehen zur Verfügung:
     aktuelle Status wird gelesen und als Badge angezeigt (`users.is_high_team`).
 - **Besprechungen**: beim Erstellen können optional eine Ankündigung in einen Discord-
   Channel (per Webhook oder Bot) gepostet und ein natives Discord Scheduled Event
-  erstellt werden, das bei Bearbeitung/Absage automatisch mit aktualisiert wird.
-- **Zu-/Absagen direkt in Discord, ohne Portal-Login**: ist `DISCORD_PUBLIC_KEY`
-  gesetzt, hat die Ankündigungs-Nachricht Zusagen/Vielleicht/Absagen-Buttons
+  erstellt werden, das bei Bearbeitung/Absage automatisch mit aktualisiert wird. Die
+  Ankündigung ist ein Embed (Vom/Bis zum/Ort/Thema/Inhalt) und pingt automatisch die
+  Discord-Rollen aller eingeladenen Ränge (plus Team-Rolle bei team-gebundenen
+  Besprechungen). Ein „Zum Meeting"-Button verlinkt immer ins Dashboard.
+- **Teilnehmen/Absagen direkt in Discord, ohne Portal-Login**: ist `DISCORD_PUBLIC_KEY`
+  gesetzt, hat die Ankündigungs-Nachricht zusätzlich Teilnehmen/Vielleicht/Absagen-Buttons
   (`discord_interactions.php`). Ein Klick beantwortet die Besprechung sofort — legt bei
   Bedarf automatisch ein minimales Mitgliedskonto an, prüft die „Team"-Rolle sowie die
   Berechtigung `meetings.respond` und antwortet ephemeral (nur für den Klickenden
