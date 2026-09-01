@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requirePermission('meetings.manage');
 $db = DB::get();
 
@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $teams = $db->query("SELECT * FROM teams ORDER BY name ASC")->fetchAll();
 $pageTitle = $meeting ? 'Besprechung bearbeiten' : 'Besprechung erstellen';
 $active = 'meetings';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header"><h1><?= e($pageTitle) ?></h1></div>
 
@@ -188,4 +188,4 @@ require __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

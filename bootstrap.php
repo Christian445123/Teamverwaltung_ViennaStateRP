@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * Markiert einen ordnungsgemäß über bootstrap.php gestarteten Request.
+ * src/*.php und includes/*.php prüfen das und verweigern die direkte
+ * Ausführung, falls sie (z. B. per URL) ohne Bootstrap aufgerufen werden —
+ * unabhängig davon, ob der Webserver .htaccess/Rewrite-Regeln auswertet.
+ */
+define('APP_BOOTSTRAPPED', true);
+
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }

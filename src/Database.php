@@ -1,5 +1,7 @@
 <?php
 
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
+
 class DB
 {
     private static ?PDO $instance = null;

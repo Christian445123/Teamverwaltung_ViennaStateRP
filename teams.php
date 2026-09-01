@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requireLogin();
 $db = DB::get();
 $canManage = Perm::has($user, 'teams.manage');
@@ -41,7 +41,7 @@ $discordRoles = Settings::isBotConfigured() ? DiscordClient::fetchGuildRoles() :
 
 $pageTitle = 'Teams';
 $active = 'teams';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header"><h1>Teams</h1></div>
 
@@ -109,4 +109,4 @@ require __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

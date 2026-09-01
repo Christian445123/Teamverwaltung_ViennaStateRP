@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requireLogin();
 $db = DB::get();
 
@@ -40,7 +40,7 @@ $labels = ['accepted' => 'Zugesagt', 'declined' => 'Abgesagt', 'maybe' => 'Viell
 
 $pageTitle = $meeting['title'];
 $active = 'meetings';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header">
   <h1><?= e($meeting['title']) ?> <?php if ($meeting['status'] === 'cancelled'): ?><span class="badge status-cancelled">Abgesagt</span><?php endif; ?></h1>
@@ -89,4 +89,4 @@ require __DIR__ . '/../includes/header.php';
   </div>
 </div>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

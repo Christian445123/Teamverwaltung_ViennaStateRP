@@ -1,0 +1,15 @@
+Options -Indexes
+DirectoryIndex index.php
+
+# ── Sensible Dateien sperren (nur wirksam unter Apache) ──
+<FilesMatch "\.(env|log|key)$">
+  Require all denied
+</FilesMatch>
+
+# ── src/ und includes/ nicht direkt aufrufbar machen ──
+# (Zusätzlich zum APP_BOOTSTRAPPED-Guard in den Dateien selbst, der auch ohne
+# .htaccess-Unterstützung greift, z. B. unter nginx/CloudPanel.)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^(src|includes)/ - [F,L]
+</IfModule>

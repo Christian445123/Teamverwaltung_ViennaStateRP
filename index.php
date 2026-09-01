@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requireLogin();
 $db = DB::get();
 
@@ -19,7 +19,7 @@ $upcoming = $db->query("
 
 $pageTitle = 'Dashboard';
 $active = 'dashboard';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header">
   <h1>Willkommen, <?= e($user['display_name']) ?></h1>
@@ -73,4 +73,4 @@ require __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

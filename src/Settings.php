@@ -1,5 +1,7 @@
 <?php
 
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
+
 /**
  * Alle wichtigen/geheimen Einstellungen (Discord-Zugangsdaten, App-URL) kommen
  * ausschließlich aus der .env-Datei — nicht aus der Datenbank. Rollen-Zuordnungen

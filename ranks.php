@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requirePermission('ranks.manage');
 $db = DB::get();
 $allPerms = Perm::all();
@@ -44,7 +44,7 @@ $discordRoles = Settings::isBotConfigured() ? DiscordClient::fetchGuildRoles() :
 
 $pageTitle = 'Ränge';
 $active = 'ranks';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header"><h1>Ränge &amp; Berechtigungen</h1></div>
 <p class="text-muted" style="margin-top:-14px;">Ränge bestimmen Berechtigungen in der Teamverwaltung und können optional automatisch mit einer Discord-Rolle synchronisiert werden.</p>
@@ -129,4 +129,4 @@ require __DIR__ . '/../includes/header.php';
   </form>
 </div>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

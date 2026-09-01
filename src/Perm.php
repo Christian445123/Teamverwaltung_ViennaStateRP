@@ -1,5 +1,7 @@
 <?php
 
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
+
 class Perm
 {
     public static function rankOf(array $user): ?array

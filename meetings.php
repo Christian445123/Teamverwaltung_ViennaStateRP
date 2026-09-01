@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requireLogin();
 $db = DB::get();
 $canManage = Perm::has($user, 'meetings.manage');
@@ -48,7 +48,7 @@ function render_meeting_row(array $m): void {
 
 $pageTitle = 'Besprechungen';
 $active = 'meetings';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header">
   <h1>Besprechungen</h1>
@@ -69,4 +69,4 @@ require __DIR__ . '/../includes/header.php';
   <?php else: foreach ($past as $m) render_meeting_row($m); endif; ?>
 </div>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

@@ -51,57 +51,76 @@ Den Ergebniswert 1:1 in die `.env` eintragen, z. B. `DB_PASS=ENC:...`. Klartext 
 `DISCORD_CLIENT_ID` oder `DISCORD_GUILD_ID` müssen nicht verschlüsselt werden.
 
 Noch sicherer: `APP_SECRET_KEY` selbst aus der `.env` entfernen und stattdessen in
-eine Datei **außerhalb** des Document Roots legen, z. B.
-`/home/<site>/teamverwaltung.key` (eine Ebene über `public/`, wenn `DOCUMENT_ROOT`
-auf `public/` zeigt). Pfad optional über `APP_KEY_FILE` überschreiben. Damit steht
-selbst der Master-Key nicht mehr in einer Datei, die je nach Deployment mit
+eine Datei **außerhalb** des Projektverzeichnisses legen, z. B.
+`/home/<site-user>/teamverwaltung.key` (eine Ebene über dem Ordner, den CloudPanel
+als Document Root nutzt). Pfad optional über `APP_KEY_FILE` überschreiben. Damit
+steht selbst der Master-Key nicht mehr in einer Datei, die je nach Deployment mit
 kopiert/gebackupt wird.
 
 ## Lokal starten
 
 ```bash
-php -S localhost:8000 -t public
+php -S localhost:8000 router.php
 ```
 
 Dann `http://localhost:8000` öffnen. Beim ersten Aufruf wird ein
 Ersteinrichtungs-Formular angezeigt, um das erste Administrator-Konto anzulegen.
+`router.php` ist nur für den eingebauten Dev-Server nötig (der wertet, anders als
+Apache, keine `.htaccess` aus) und blockiert dort direkte Zugriffe auf `.env`,
+`src/` und `includes/`.
 
-## Deployment (Apache/Nginx/XAMPP)
+## Projektlayout & warum es keinen `public/`-Unterordner gibt
 
-Das Document Root muss auf den Ordner `public/` zeigen — die Ordner `src/`,
-`includes/` sowie die `.env` liegen bewusst außerhalb und sind damit nicht direkt
-über den Browser erreichbar. `public/.htaccess` ist ein reines Apache-Feature —
-unter nginx/CloudPanel (siehe unten) wirkungslos, aber auch nicht nötig, weil die
-geschützten Dateien dort ohnehin außerhalb des Document Roots liegen.
+Anders als in einer ersten Version liegen alle aufrufbaren Seiten (`index.php`,
+`login.php`, `meetings.php`, …) direkt im Projekt-Root — genau wie im
+Schwester-Projekt `ViennaStateRP/Website`. Das hat einen konkreten Grund:
+
+CloudPanel legt für eine neue PHP-Site **standardmäßig das Projekt-Root selbst**
+als Document Root fest. Ein `public/`-Unterordner als Document Root würde
+bedeuten, dass in CloudPanel manuell das Vhost-Template der Seite bearbeitet und
+die `root`-Direktive angepasst werden muss — ein Schritt, der leicht vergessen
+wird und der genau zu dem „403 Forbidden“ (nginx findet kein `index.php` im
+Root, weil das echte `index.php` unter `public/` liegt) geführt hat, das zuerst
+aufgetreten ist. `ViennaStateRP/Website` funktioniert unverändert, weil dort
+exakt dieses CloudPanel-Standardverhalten genutzt wird — Teamverwaltung macht es
+jetzt genauso.
+
+Schutz für nicht-öffentliche Dateien läuft dadurch nicht mehr über die
+Document-Root-Trennung, sondern über zwei unabhängige Mechanismen, die beide
+ohne CloudPanel-Sonderkonfiguration auskommen:
+
+- **`.env`** ist eine Dotfile — die von CloudPanel/nginx standardmäßig ausgelieferte
+  Konfiguration blockiert Anfragen auf Dateien mit führendem Punkt (genau wie bei
+  `ViennaStateRP/Website`).
+- **`src/` und `includes/`** enthalten reine Klassen-/Funktionsdefinitionen ohne
+  Ausgabe und werden zusätzlich durch einen `APP_BOOTSTRAPPED`-Guard geschützt:
+  jede Datei dort prüft am Anfang `defined('APP_BOOTSTRAPPED')` und bricht sonst
+  ab. Dieses Flag wird ausschließlich in `bootstrap.php` gesetzt — ein direkter
+  Aufruf wie `/src/Database.php` liefert dadurch immer einen 403, unabhängig
+  davon, ob der Webserver `.htaccess`/Rewrite-Regeln auswertet oder nicht.
+
+`.htaccess` (nur unter Apache wirksam) und `router.php` (nur für den lokalen
+`php -S`-Server) bilden dieselben Regeln zusätzlich auf Webserver-Ebene nach —
+reine Defense-in-Depth, kein Ersatz für die beiden Punkte oben.
 
 ## Deployment mit CloudPanel + Cloudflare (wie bei `ViennaStateRP/Website`)
 
-CloudPanel nutzt intern nginx + PHP-FPM (kein Apache, `.htaccess` wird nicht
-ausgewertet). Wichtig beim Anlegen der Seite in CloudPanel:
-
 1. **Site-Typ**: PHP-Seite in CloudPanel anlegen (Domain `teamverwaltung.viennastaterp.at`),
-   passende PHP-Version wählen (8.1+).
+   passende PHP-Version wählen (8.1+). Document Root **nicht** anpassen — der
+   CloudPanel-Standard (Projekt-Root) ist bereits korrekt.
 2. Projektdateien in das von CloudPanel vorgegebene Verzeichnis hochladen/deployen
    (üblicherweise `/home/<site-user>/htdocs/<domain>/`).
-3. **Document Root auf `public/` umstellen** — das ist der häufigste Grund für ein
-   „403 Forbidden“ direkt von nginx (leeres/kein `index.php` im eigentlichen
-   Root, da `index.php` bei uns unter `public/` liegt): In CloudPanel unter
-   *Sites → (Seite auswählen) → Vhost* die `root`-Direktive der PHP-Site auf
-   `.../htdocs/<domain>/public` anpassen (CloudPanel erlaubt das Bearbeiten des
-   Vhost-Templates pro Seite).
-4. Datei-Eigentümer prüfen: Alle hochgeladenen Dateien müssen dem Linux-Benutzer der
-   CloudPanel-Site gehören (nicht `root`), sonst liefert nginx ebenfalls 403 —
+3. Datei-Eigentümer prüfen: Alle hochgeladenen Dateien müssen dem Linux-Benutzer der
+   CloudPanel-Site gehören (nicht `root`), sonst liefert nginx 403 —
    ggf. mit `chown -R <site-user>:<site-user> .` im Site-Verzeichnis korrigieren.
-5. `.env` außerhalb `public/` ins Site-Verzeichnis legen (nicht committen, siehe
-   oben) und mit den echten Zugangsdaten befüllen.
-6. **Cloudflare**: DNS-Eintrag zeigt bereits auf den Server; SSL/TLS-Modus in
+   Das ist nach einem 403 (bei korrektem Document Root) die wahrscheinlichste
+   Ursache.
+4. `.env` ins Site-Verzeichnis legen (nicht committen, siehe oben) und mit den
+   echten Zugangsdaten befüllen.
+5. **Cloudflare**: DNS-Eintrag zeigt bereits auf den Server; SSL/TLS-Modus in
    Cloudflare auf *Full* oder *Full (strict)* stellen, damit der Origin-Request von
    Cloudflare zu CloudPanel per HTTPS funktioniert (bei *Flexible* + erzwungenem
    HTTPS auf dem Origin kann es zu Redirect-Loops kommen).
-
-Ein „403 Forbidden“ direkt von nginx (nicht von Cloudflare) bedeutet: die Anfrage
-kommt am Server an, aber nginx findet keine ausführbare Datei am konfigurierten
-Root — meistens Punkt 3 oder 4 oben.
 
 ## Discord-Integration einrichten
 
@@ -160,11 +179,13 @@ unabhängig vom zugewiesenen Rang alle Rechte.
 ## Projektstruktur
 
 ```
-bootstrap.php     Zentrales Bootstrapping (Session, .env, DB, Klassen)
-src/               PHP-Klassen (Env, DB, Auth, Perm, Settings, DiscordClient) – nicht öffentlich
-includes/          Layout-Header/Footer – nicht öffentlich
-public/            Document Root: alle aufrufbaren Seiten + Assets
-.env               Zugangsdaten (DB + Discord, teils ENC:-verschlüsselt) – NICHT committen
-.env.example       Vorlage für .env
-encrypt_env.php    CLI-Tool zum Verschlüsseln einzelner Werte für die .env
+bootstrap.php     Zentrales Bootstrapping (Session, .env, DB, Klassen, setzt APP_BOOTSTRAPPED)
+index.php, login.php, meetings.php, …   Aufrufbare Seiten, liegen direkt im Root (wie bei Website)
+assets/           CSS/JS, öffentlich
+src/              PHP-Klassen (Env, DB, Auth, Perm, Settings, DiscordClient) – per APP_BOOTSTRAPPED-Guard geschützt
+includes/         Layout-Header/Footer – per APP_BOOTSTRAPPED-Guard geschützt
+router.php        Nur für "php -S" im lokalen Dev-Betrieb (bildet .htaccess-Regeln nach)
+.env              Zugangsdaten (DB + Discord, teils ENC:-verschlüsselt) – NICHT committen
+.env.example      Vorlage für .env
+encrypt_env.php   CLI-Tool zum Verschlüsseln einzelner Werte für die .env
 ```

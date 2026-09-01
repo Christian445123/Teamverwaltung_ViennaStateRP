@@ -1,4 +1,7 @@
-<?php $user = current_user(); ?>
+<?php
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
+$user = current_user();
+?>
 <?php if ($user): ?>
   </main>
 </div>

@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 
 if (current_user()) {
     redirect(url('index.php'));
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = $setupMode ? 'Ersteinrichtung' : 'Anmelden';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="auth-card">
   <h1><?= $setupMode ? 'Ersteinrichtung' : 'Anmelden' ?></h1>
@@ -81,4 +81,4 @@ require __DIR__ . '/../includes/header.php';
   </a>
   <?php endif; ?>
 </div>
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

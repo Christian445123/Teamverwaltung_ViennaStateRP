@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requirePermission('members.manage');
 $db = DB::get();
 
@@ -89,7 +89,7 @@ $teams = $db->query("SELECT * FROM teams ORDER BY name ASC")->fetchAll();
 
 $pageTitle = $member ? 'Mitglied bearbeiten' : 'Mitglied hinzufügen';
 $active = 'members';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header"><h1><?= e($pageTitle) ?></h1></div>
 
@@ -175,4 +175,4 @@ require __DIR__ . '/../includes/header.php';
 <?php endif; ?>
 <?php endif; ?>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

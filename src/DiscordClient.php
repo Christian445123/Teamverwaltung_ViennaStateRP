@@ -1,5 +1,7 @@
 <?php
 
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
+
 class DiscordClient
 {
     private const API = 'https://discord.com/api/v10';

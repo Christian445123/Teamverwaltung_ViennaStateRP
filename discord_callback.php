@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 
 $code = $_GET['code'] ?? null;
 $state = $_GET['state'] ?? null;

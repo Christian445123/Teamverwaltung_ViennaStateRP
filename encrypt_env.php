@@ -15,6 +15,7 @@ if (php_sapi_name() !== 'cli') {
     die('Nur per CLI ausführbar.');
 }
 
+define('APP_BOOTSTRAPPED', true);
 require_once __DIR__ . '/src/Env.php';
 
 if (empty($argv[1])) {

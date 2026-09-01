@@ -1,6 +1,0 @@
-Options -Indexes
-DirectoryIndex index.php
-
-<FilesMatch "\.(env|log|key)$">
-  Require all denied
-</FilesMatch>

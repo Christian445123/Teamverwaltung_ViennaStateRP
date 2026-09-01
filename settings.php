@@ -1,5 +1,5 @@
 <?php
-require __DIR__ . '/../bootstrap.php';
+require __DIR__ . '/bootstrap.php';
 $user = Auth::requirePermission('discord.manage');
 $db = DB::get();
 
@@ -59,7 +59,7 @@ function status_row(string $label, bool $ok, string $envVar): void {
 
 $pageTitle = 'Einstellungen';
 $active = 'settings';
-require __DIR__ . '/../includes/header.php';
+require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header"><h1>Discord &amp; Einstellungen</h1></div>
 
@@ -117,4 +117,4 @@ require __DIR__ . '/../includes/header.php';
 </div>
 <?php endif; ?>
 
-<?php require __DIR__ . '/../includes/footer.php'; ?>
+<?php require __DIR__ . '/includes/footer.php'; ?>

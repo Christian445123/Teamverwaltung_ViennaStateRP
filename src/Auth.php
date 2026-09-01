@@ -1,5 +1,7 @@
 <?php
 
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
+
 class Auth
 {
     private static ?array $userCache = null;

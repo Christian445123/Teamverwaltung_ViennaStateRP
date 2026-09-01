@@ -1,5 +1,7 @@
 <?php
 
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
+
 /**
  * .env-Loader mit Unterstützung für verschlüsselte Werte (Präfix "ENC:").
  *

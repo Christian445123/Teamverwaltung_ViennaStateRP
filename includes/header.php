@@ -1,4 +1,5 @@
 <?php
+defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 /** @var array|null $user */
 $user = current_user();
 $pageTitle = $pageTitle ?? 'Teamverwaltung';
