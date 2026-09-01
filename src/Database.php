@@ -4,6 +4,9 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 
 class DB
 {
+    // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
+    private const SCHEMA_VERSION = 1;
+
     private static ?PDO $instance = null;
 
     public static function get(): PDO
@@ -41,6 +44,24 @@ class DB
 
     private static function migrate(PDO $db): void
     {
+        // Schema-Versionsprüfung: alle Checks/Backfills unten liefen bisher bei JEDEM Request
+        // erneut (mehrere CREATE TABLE IF NOT EXISTS, SHOW COLUMNS, Backfill-Schleifen über
+        // alle Ränge) — für die meisten Requests unauffällig, aber für den Discord Interactions
+        // Endpoint (discord_interactions.php) zu langsam: Discord verlangt eine Antwort
+        // innerhalb von 3 Sekunden, sonst zeigt der Client "hat nicht rechtzeitig reagiert".
+        // Ab jetzt läuft die komplette Migration nur einmal (bis SCHEMA_VERSION erhöht wird),
+        // danach kostet dieser Aufruf nur noch die eine Abfrage unten.
+        $db->exec("CREATE TABLE IF NOT EXISTS schema_meta (
+            id TINYINT UNSIGNED NOT NULL,
+            version INT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY (id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        $currentVersion = (int) ($db->query("SELECT version FROM schema_meta WHERE id = 1")->fetchColumn() ?: 0);
+        if ($currentVersion >= self::SCHEMA_VERSION) {
+            return;
+        }
+
         $db->exec("CREATE TABLE IF NOT EXISTS ranks (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,
             name VARCHAR(100) NOT NULL,
@@ -220,5 +241,8 @@ class DB
                 $db->prepare("DELETE FROM ranks WHERE id = ?")->execute([$legacyId]);
             }
         }
+
+        $db->prepare("INSERT INTO schema_meta (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)")
+            ->execute([self::SCHEMA_VERSION]);
     }
 }
