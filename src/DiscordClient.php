@@ -165,9 +165,10 @@ class DiscordClient
 
         $desiredExtra = [];
         $rank = $user['rank_id'] ? self::rankRoleId($user['rank_id']) : null;
-        $team = $user['team_id'] ? self::teamRoleId($user['team_id']) : null;
         if ($rank) $desiredExtra[] = $rank;
-        if ($team) $desiredExtra[] = $team;
+        foreach (self::teamRoleIdsForUser((int) $user['id']) as $teamRole) {
+            $desiredExtra[] = $teamRole;
+        }
         // Auto-vergebene Zusatzrollen (aktuell keine — "Team" wird bewusst nie automatisch
         // vergeben, siehe oben) kämen hier zusätzlich dazu.
         foreach (self::autoAssignExtraRoleIds() as $extraRoleId) {
@@ -493,12 +494,16 @@ class DiscordClient
         return $val ?: null;
     }
 
-    private static function teamRoleId(int $teamId): ?string
+    /** Discord-Rollen-IDs aller Teams, denen ein Mitglied aktuell zugeordnet ist (0, 1 oder mehrere). */
+    private static function teamRoleIdsForUser(int $userId): array
     {
-        $stmt = DB::get()->prepare("SELECT discord_role_id FROM teams WHERE id = ?");
-        $stmt->execute([$teamId]);
-        $val = $stmt->fetchColumn();
-        return $val ?: null;
+        $stmt = DB::get()->prepare("
+            SELECT t.discord_role_id FROM user_teams ut
+            JOIN teams t ON t.id = ut.team_id
+            WHERE ut.user_id = ? AND t.discord_role_id IS NOT NULL AND t.discord_role_id != ''
+        ");
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
 
     /** Create a Discord Scheduled Event for a meeting. Returns the event id or null. */
@@ -575,35 +580,10 @@ class DiscordClient
      * Ohne Bot-Kanal wird über den Webhook nur der (immer funktionierende) Link-Button
      * mitgeschickt, damit keine kaputten Buttons angezeigt werden.
      */
-    public static function announceMeeting(array $meeting): ?string
+    public static function announceMeeting(array $meeting): ?array
     {
         $meetingId = (int) ($meeting['id'] ?? 0);
-        $start = strtotime($meeting['start_time']);
-
-        $fields = [
-            ['name' => 'Vom', 'value' => date('d.m.Y H:i', $start) . ' Uhr', 'inline' => false],
-        ];
-        if (!empty($meeting['end_time'])) {
-            $fields[] = ['name' => 'Bis zum', 'value' => date('d.m.Y H:i', strtotime($meeting['end_time'])) . ' Uhr', 'inline' => false];
-        }
-        if (!empty($meeting['location'])) {
-            $fields[] = ['name' => 'Ort', 'value' => $meeting['location'], 'inline' => false];
-        }
-        $fields[] = ['name' => 'Thema', 'value' => $meeting['title'], 'inline' => false];
-        if (!empty($meeting['description'])) {
-            $fields[] = ['name' => 'Inhalt', 'value' => mb_substr($meeting['description'], 0, 1000), 'inline' => false];
-        }
-
-        $embed = [
-            'title' => '📅 Neue Besprechung',
-            'description' => "Es wurde eine neue Besprechung angesetzt. Wir freuen uns auf zahlreiche Teilnahme.\n\n"
-                . '*Du kannst deine Teilnahme entweder im Dashboard oder mit den Buttons unten bestätigen oder ablehnen.*',
-            'color' => 0x5865F2,
-            'fields' => $fields,
-            'footer' => ['text' => 'Teamverwaltung'],
-            'timestamp' => date('c'),
-        ];
-
+        $embed = self::buildMeetingEmbed($meeting, false);
         $payload = ['embeds' => [$embed]];
 
         $mentionRoleIds = $meetingId ? self::mentionRoleIdsForMeeting($meetingId) : [];
@@ -623,34 +603,115 @@ class DiscordClient
             $components[] = self::rsvpActionRow($meetingId);
         }
         if ($meetingId) {
-            $components[] = [
-                'type' => 1,
-                'components' => [
-                    ['type' => 2, 'style' => 5, 'label' => 'Zum Meeting', 'url' => Settings::appUrl() . '/meeting_view.php?id=' . $meetingId],
-                ],
-            ];
+            $components[] = self::linkButtonRow($meetingId);
         }
         if ($components) {
             $payload['components'] = $components;
         }
 
-        if ($useBotForInteractive) {
+        if ($useBotForInteractive || $canUseBotChannel) {
             $result = self::request('POST', self::API . "/channels/{$channelId}/messages", json_encode($payload), $headers);
-            return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
+            if (!$result['ok']) return null;
+            return ['message_id' => (string) ($result['data']['id'] ?? ''), 'channel_id' => $channelId];
         }
 
         $webhook = Settings::get('discord_webhook_url');
         if ($webhook) {
             $result = self::request('POST', $webhook . '?wait=true', json_encode($payload), ['Content-Type: application/json']);
-            return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
-        }
-
-        if ($canUseBotChannel) {
-            $result = self::request('POST', self::API . "/channels/{$channelId}/messages", json_encode($payload), $headers);
-            return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
+            if (!$result['ok']) return null;
+            return ['message_id' => (string) ($result['data']['id'] ?? ''), 'channel_id' => null];
         }
 
         return null;
+    }
+
+    /**
+     * Bearbeitet eine bereits gepostete Besprechungs-Ankündigung — genutzt beim Absagen, um
+     * groß & unübersehbar "ABGESAGT" in den Discord-Kanal zu schreiben, statt die alte
+     * Nachricht unverändert stehen zu lassen. Entfernt die Zu-/Absage-Buttons (Antworten
+     * ergibt für eine abgesagte Besprechung keinen Sinn mehr), der "Zum Meeting"-Link bleibt.
+     * Funktioniert für beide Transportwege (Bot-Kanal anhand von discord_channel_id,
+     * Webhook anhand der Edit-Message-Route), je nachdem wie ursprünglich gepostet wurde.
+     */
+    public static function updateMeetingAnnouncement(array $meeting): bool
+    {
+        if (empty($meeting['discord_message_id'])) return false;
+
+        $cancelled = ($meeting['status'] ?? '') === 'cancelled';
+        $embed = self::buildMeetingEmbed($meeting, $cancelled);
+        $payload = ['embeds' => [$embed]];
+
+        $meetingId = (int) ($meeting['id'] ?? 0);
+        if ($cancelled && $meetingId) {
+            // Zu-/Absage-Buttons entfernen (ergibt für eine abgesagte Besprechung keinen Sinn
+            // mehr), nur der immer gültige "Zum Meeting"-Link bleibt übrig.
+            $payload['components'] = [self::linkButtonRow($meetingId)];
+        }
+
+        if (!empty($meeting['discord_channel_id'])) {
+            $headers = self::botHeaders();
+            if (!$headers) return false;
+            $result = self::request('PATCH', self::API . "/channels/{$meeting['discord_channel_id']}/messages/{$meeting['discord_message_id']}", json_encode($payload), $headers);
+            return $result['ok'];
+        }
+
+        $webhook = Settings::get('discord_webhook_url');
+        if ($webhook) {
+            $result = self::request('PATCH', rtrim($webhook, '/') . '/messages/' . $meeting['discord_message_id'], json_encode($payload), ['Content-Type: application/json']);
+            return $result['ok'];
+        }
+
+        return false;
+    }
+
+    private static function buildMeetingEmbed(array $meeting, bool $cancelled): array
+    {
+        $start = strtotime($meeting['start_time']);
+
+        $fields = [
+            ['name' => 'Vom', 'value' => date('d.m.Y H:i', $start) . ' Uhr', 'inline' => false],
+        ];
+        if (!empty($meeting['end_time'])) {
+            $fields[] = ['name' => 'Bis zum', 'value' => date('d.m.Y H:i', strtotime($meeting['end_time'])) . ' Uhr', 'inline' => false];
+        }
+        if (!empty($meeting['location'])) {
+            $fields[] = ['name' => 'Ort', 'value' => $meeting['location'], 'inline' => false];
+        }
+        $fields[] = ['name' => 'Thema', 'value' => $meeting['title'], 'inline' => false];
+        if (!empty($meeting['description'])) {
+            $fields[] = ['name' => 'Inhalt', 'value' => mb_substr($meeting['description'], 0, 1000), 'inline' => false];
+        }
+
+        if ($cancelled) {
+            return [
+                'title' => '❌ BESPRECHUNG ABGESAGT',
+                'description' => "**Diese Besprechung wurde abgesagt.**\n\n~~Es wurde eine neue Besprechung angesetzt. Wir freuen uns auf zahlreiche Teilnahme.~~",
+                'color' => 0xED4245,
+                'fields' => $fields,
+                'footer' => ['text' => 'Teamverwaltung · Abgesagt'],
+                'timestamp' => date('c'),
+            ];
+        }
+
+        return [
+            'title' => '📅 Neue Besprechung',
+            'description' => "Es wurde eine neue Besprechung angesetzt. Wir freuen uns auf zahlreiche Teilnahme.\n\n"
+                . '*Du kannst deine Teilnahme entweder im Dashboard oder mit den Buttons unten bestätigen oder ablehnen.*',
+            'color' => 0x5865F2,
+            'fields' => $fields,
+            'footer' => ['text' => 'Teamverwaltung'],
+            'timestamp' => date('c'),
+        ];
+    }
+
+    private static function linkButtonRow(int $meetingId): array
+    {
+        return [
+            'type' => 1,
+            'components' => [
+                ['type' => 2, 'style' => 5, 'label' => 'Zum Meeting', 'url' => Settings::appUrl() . '/meeting_view.php?id=' . $meetingId],
+            ],
+        ];
     }
 
     /** Discord-Rollen-IDs der Ränge aller eingeladenen Teilnehmer plus ggf. die Team-Rolle — für die @-Erwähnung in der Ankündigung. */

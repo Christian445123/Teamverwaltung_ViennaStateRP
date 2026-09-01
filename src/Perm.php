@@ -32,6 +32,7 @@ class Perm
             'meetings.manage' => 'Besprechungen verwalten',
             'meetings.respond' => 'Auf Besprechungen antworten (Zu-/Absagen)',
             'meetings.view_attendance' => 'Zu-/Absagen & Anwesenheit einsehen',
+            'meetings.respond_for_others' => 'Für andere Mitglieder zu-/absagen (Stellvertretung)',
             'teams.manage' => 'Teams verwalten',
             'ranks.manage' => 'Ränge & Berechtigungen verwalten',
             'discord.manage' => 'Discord-Einstellungen verwalten',

@@ -6,7 +6,7 @@
  * Ausführung, falls sie (z. B. per URL) ohne Bootstrap aufgerufen werden —
  * unabhängig davon, ob der Webserver .htaccess/Rewrite-Regeln auswertet.
  */
-define('APP_BOOTSTRAPPED', true);
+defined('APP_BOOTSTRAPPED') || define('APP_BOOTSTRAPPED', true);
 
 if (session_status() === PHP_SESSION_NONE) {
     session_start();

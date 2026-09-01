@@ -5,7 +5,7 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 class DB
 {
     // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
-    private const SCHEMA_VERSION = 2;
+    private const SCHEMA_VERSION = 3;
 
     private static ?PDO $instance = null;
 
@@ -117,6 +117,19 @@ class DB
         if (!in_array('is_team', $existingUserCols, true)) {
             $db->exec("ALTER TABLE `users` ADD COLUMN `is_team` TINYINT(1) NOT NULL DEFAULT 0");
         }
+
+        // Mehrfach-Teams pro Mitglied: users.team_id blieb aus Kompatibilität in der Tabelle
+        // stehen, ist aber nicht mehr die Quelle der Wahrheit — user_teams löst es ab (n:m).
+        // Bestehende single-team-Zuordnungen werden einmalig übernommen.
+        $db->exec("CREATE TABLE IF NOT EXISTS user_teams (
+            user_id INT UNSIGNED NOT NULL,
+            team_id INT UNSIGNED NOT NULL,
+            PRIMARY KEY (user_id, team_id),
+            KEY idx_ut_team (team_id),
+            CONSTRAINT fk_ut_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            CONSTRAINT fk_ut_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $db->exec("INSERT IGNORE INTO user_teams (user_id, team_id) SELECT id, team_id FROM users WHERE team_id IS NOT NULL");
 
         $db->exec("CREATE TABLE IF NOT EXISTS discord_extra_roles (
             slug VARCHAR(20) NOT NULL,
@@ -246,13 +259,13 @@ class DB
             ['Moderator',           30, '#7c3aed', ['meetings.respond']],
             ['Test-Developer',      40, '#06b6d4', ['meetings.respond']],
             ['Developer',           50, '#0ea5e9', ['meetings.respond']],
-            ['Test-Admin',          60, '#f97316', ['meetings.manage', 'meetings.respond', 'meetings.view_attendance']],
-            ['Admin',               70, '#ef4444', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance']],
-            ['Stv. Teamleitung',    80, '#e879f9', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage']],
-            ['Teamleitung',         90, '#d946ef', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage']],
-            ['Stv. Projektleitung', 100, '#fb923c', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage', 'ranks.manage']],
-            ['Projektleitung',      110, '#f59e0b', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage', 'ranks.manage', 'discord.manage']],
-            ['Owner',               120, '#e8b86d', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'teams.manage', 'ranks.manage', 'discord.manage']],
+            ['Test-Admin',          60, '#f97316', ['meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'meetings.respond_for_others']],
+            ['Admin',               70, '#ef4444', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'meetings.respond_for_others']],
+            ['Stv. Teamleitung',    80, '#e879f9', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'meetings.respond_for_others', 'teams.manage']],
+            ['Teamleitung',         90, '#d946ef', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'meetings.respond_for_others', 'teams.manage']],
+            ['Stv. Projektleitung', 100, '#fb923c', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'meetings.respond_for_others', 'teams.manage', 'ranks.manage']],
+            ['Projektleitung',      110, '#f59e0b', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'meetings.respond_for_others', 'teams.manage', 'ranks.manage', 'discord.manage']],
+            ['Owner',               120, '#e8b86d', ['members.manage', 'meetings.manage', 'meetings.respond', 'meetings.view_attendance', 'meetings.respond_for_others', 'teams.manage', 'ranks.manage', 'discord.manage']],
         ];
 
         $existingNames = $db->query("SELECT name FROM ranks")->fetchAll(PDO::FETCH_COLUMN);
@@ -280,6 +293,10 @@ class DB
             }
             if (in_array('meetings.manage', $perms, true) && !in_array('meetings.view_attendance', $perms, true)) {
                 $perms[] = 'meetings.view_attendance';
+                $changed = true;
+            }
+            if (in_array('meetings.manage', $perms, true) && !in_array('meetings.respond_for_others', $perms, true)) {
+                $perms[] = 'meetings.respond_for_others';
                 $changed = true;
             }
             if ($changed) {

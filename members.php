@@ -5,11 +5,14 @@ $db = DB::get();
 $canManage = Perm::has($user, 'members.manage');
 
 $members = $db->query("
-  SELECT u.*, r.name AS rank_name, r.color AS rank_color, r.level AS rank_level, t.name AS team_name
+  SELECT u.*, r.name AS rank_name, r.color AS rank_color, r.level AS rank_level,
+    GROUP_CONCAT(t.name ORDER BY t.name SEPARATOR ', ') AS team_names
   FROM users u
   LEFT JOIN ranks r ON r.id = u.rank_id
-  LEFT JOIN teams t ON t.id = u.team_id
+  LEFT JOIN user_teams ut ON ut.user_id = u.id
+  LEFT JOIN teams t ON t.id = ut.team_id
   WHERE u.status = 'active'
+  GROUP BY u.id
   ORDER BY r.level DESC, u.display_name ASC
 ")->fetchAll();
 
@@ -52,7 +55,7 @@ require __DIR__ . '/includes/header.php';
           </div>
         </td>
         <td><?php if ($m['rank_name']): ?><span class="badge" style="background:<?= e($m['rank_color']) ?>"><?= e($m['rank_name']) ?></span><?php else: ?><span class="text-muted">–</span><?php endif; ?></td>
-        <td><?= $m['team_name'] ? e($m['team_name']) : '<span class="text-muted">–</span>' ?></td>
+        <td><?= $m['team_names'] ? e($m['team_names']) : '<span class="text-muted">–</span>' ?></td>
         <td>
           <?php if ($m['discord_id']): ?>
             <span class="badge outline">✓ <?= e($m['discord_username']) ?></span>

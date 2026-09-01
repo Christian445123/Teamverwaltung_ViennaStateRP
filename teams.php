@@ -25,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canManage) {
             flash('success', 'Team erstellt.');
         }
     } elseif ($action === 'delete' && $id) {
-        $db->prepare("UPDATE users SET team_id = NULL WHERE team_id = ?")->execute([$id]);
+        // user_teams-Zuordnungen werden per ON DELETE CASCADE automatisch mitentfernt.
         $db->prepare("DELETE FROM teams WHERE id = ?")->execute([$id]);
         flash('success', 'Team gelöscht.');
     }
@@ -33,7 +33,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canManage) {
 }
 
 $teams = $db->query("
-  SELECT t.*, (SELECT COUNT(*) FROM users u WHERE u.team_id = t.id AND u.status='active') AS member_count
+  SELECT t.*, (
+    SELECT COUNT(*) FROM user_teams ut JOIN users u ON u.id = ut.user_id
+    WHERE ut.team_id = t.id AND u.status='active'
+  ) AS member_count
   FROM teams t ORDER BY t.name ASC
 ")->fetchAll();
 

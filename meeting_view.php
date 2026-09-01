@@ -15,10 +15,28 @@ if (!$meeting) {
 $canRespond = Perm::has($user, 'meetings.respond');
 $canManage = Perm::has($user, 'meetings.manage');
 $canViewAttendance = Perm::has($user, 'meetings.view_attendance');
+$canRespondForOthers = Perm::has($user, 'meetings.respond_for_others');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? 'rsvp';
+
+    if ($action === 'respond_for') {
+        if (!$canRespondForOthers) {
+            flash('error', 'Dir fehlt die Berechtigung, für andere Mitglieder zu antworten.');
+            redirect(url('meeting_view.php?id=' . $id));
+        }
+        $attendeeId = (int) ($_POST['attendee_id'] ?? 0);
+        $status = $_POST['rsvp_status'] ?? '';
+        if ($attendeeId && in_array($status, ['accepted', 'declined', 'maybe'], true)) {
+            $stmt = $db->prepare("INSERT INTO meeting_attendees (meeting_id, user_id, status, responded_at) VALUES (?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE status = VALUES(status), responded_at = VALUES(responded_at)");
+            $stmt->execute([$id, $attendeeId, $status]);
+            audit_log('meeting.respond_for', "Besprechung #{$id}, Mitglied #{$attendeeId} → {$status}");
+            flash('success', 'Rückmeldung für Mitglied gespeichert.');
+        }
+        redirect(url('meeting_view.php?id=' . $id));
+    }
 
     if ($action === 'mark_attendance') {
         if (!$canManage) {
@@ -116,6 +134,19 @@ require __DIR__ . '/includes/header.php';
         <?php endif; ?>
         <?= e($a['display_name']) ?>
         <span class="badge rsvp-<?= e($a['status']) ?>" style="padding:2px 8px;font-size:11px;"><?= $labels[$a['status']] ?></span>
+        <?php if ($canRespondForOthers): ?>
+          <form method="post" style="display:inline;">
+            <?= csrf_field() ?>
+            <input type="hidden" name="action" value="respond_for">
+            <input type="hidden" name="attendee_id" value="<?= $a['id'] ?>">
+            <select name="rsvp_status" onchange="this.form.submit()" style="width:auto;padding:2px 6px;font-size:11px;" title="Für dieses Mitglied antworten">
+              <option value="">Für Mitglied antworten…</option>
+              <option value="accepted" <?= $a['status'] === 'accepted' ? 'selected' : '' ?>>Zusagen</option>
+              <option value="maybe" <?= $a['status'] === 'maybe' ? 'selected' : '' ?>>Vielleicht</option>
+              <option value="declined" <?= $a['status'] === 'declined' ? 'selected' : '' ?>>Absagen</option>
+            </select>
+          </form>
+        <?php endif; ?>
         <?php if ($canManage): ?>
           <?php $attendedColor = $a['attended'] === null ? 'var(--text-muted)' : ($a['attended'] ? 'var(--success)' : 'var(--danger)'); ?>
           <form method="post" style="display:inline;">

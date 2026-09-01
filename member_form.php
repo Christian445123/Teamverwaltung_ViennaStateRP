@@ -5,6 +5,7 @@ $db = DB::get();
 
 $id = isset($_GET['id']) ? (int) $_GET['id'] : null;
 $member = null;
+$memberTeamIds = [];
 if ($id) {
     $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$id]);
@@ -13,6 +14,9 @@ if ($id) {
         flash('error', 'Mitglied nicht gefunden.');
         redirect(url('members.php'));
     }
+    $teamIdsStmt = $db->prepare("SELECT team_id FROM user_teams WHERE user_id = ?");
+    $teamIdsStmt->execute([$id]);
+    $memberTeamIds = $teamIdsStmt->fetchAll(PDO::FETCH_COLUMN);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -49,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $displayName = trim($_POST['display_name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $rankId = $_POST['rank_id'] !== '' ? (int) $_POST['rank_id'] : null;
-    $teamId = $_POST['team_id'] !== '' ? (int) $_POST['team_id'] : null;
+    $teamIds = array_map('intval', $_POST['team_ids'] ?? []);
     $notes = trim($_POST['notes'] ?? '');
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -89,8 +93,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($member) {
-        $stmt = $db->prepare("UPDATE users SET display_name=?, email=?, rank_id=?, team_id=?, notes=?, username=?, discord_id=?, discord_username=?, discord_avatar=?, updated_at=NOW() WHERE id=?");
-        $stmt->execute([$displayName, $email ?: null, $rankId, $teamId, $notes ?: null, $username ?: null, $discordId ?: null, $discordUsername, $discordAvatar, $member['id']]);
+        $stmt = $db->prepare("UPDATE users SET display_name=?, email=?, rank_id=?, notes=?, username=?, discord_id=?, discord_username=?, discord_avatar=?, updated_at=NOW() WHERE id=?");
+        $stmt->execute([$displayName, $email ?: null, $rankId, $notes ?: null, $username ?: null, $discordId ?: null, $discordUsername, $discordAvatar, $member['id']]);
         if ($password !== '') {
             $db->prepare("UPDATE users SET password_hash=? WHERE id=?")->execute([password_hash($password, PASSWORD_DEFAULT), $member['id']]);
         }
@@ -98,12 +102,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         audit_log('member.update', $displayName);
         flash('success', 'Mitglied aktualisiert.');
     } else {
-        $stmt = $db->prepare("INSERT INTO users (display_name, email, rank_id, team_id, notes, username, password_hash, discord_id, discord_username, discord_avatar, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
-        $stmt->execute([$displayName, $email ?: null, $rankId, $teamId, $notes ?: null, $username ?: null, $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null, $discordId ?: null, $discordUsername, $discordAvatar]);
+        $stmt = $db->prepare("INSERT INTO users (display_name, email, rank_id, notes, username, password_hash, discord_id, discord_username, discord_avatar, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')");
+        $stmt->execute([$displayName, $email ?: null, $rankId, $notes ?: null, $username ?: null, $password !== '' ? password_hash($password, PASSWORD_DEFAULT) : null, $discordId ?: null, $discordUsername, $discordAvatar]);
         $memberId = $db->lastInsertId();
         audit_log('member.create', $displayName);
         flash('success', 'Mitglied hinzugefügt.');
+    }
+
+    // Team-Zuordnungen (mehrere möglich) komplett neu setzen.
+    $db->prepare("DELETE FROM user_teams WHERE user_id = ?")->execute([$memberId]);
+    if ($teamIds) {
+        $insertTeam = $db->prepare("INSERT IGNORE INTO user_teams (user_id, team_id) VALUES (?, ?)");
+        foreach (array_unique($teamIds) as $tid) {
+            $insertTeam->execute([$memberId, $tid]);
+        }
     }
 
     if (Settings::isBotConfigured()) {
@@ -146,13 +159,19 @@ require __DIR__ . '/includes/header.php';
         </select>
       </div>
       <div class="field">
-        <label>Team</label>
-        <select name="team_id">
-          <option value="">– keins –</option>
-          <?php foreach ($teams as $t): ?>
-            <option value="<?= $t['id'] ?>" <?= ($member['team_id'] ?? null) == $t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option>
-          <?php endforeach; ?>
-        </select>
+        <label>Teams (mehrere möglich)</label>
+        <?php if ($teams): ?>
+          <div style="display:flex;flex-direction:column;gap:4px;max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;">
+            <?php foreach ($teams as $t): ?>
+              <label style="font-weight:400;display:flex;align-items:center;gap:8px;margin-bottom:0;">
+                <input type="checkbox" name="team_ids[]" value="<?= $t['id'] ?>" style="width:auto;" <?= in_array($t['id'], $memberTeamIds, true) ? 'checked' : '' ?>>
+                <?= e($t['name']) ?>
+              </label>
+            <?php endforeach; ?>
+          </div>
+        <?php else: ?>
+          <p class="text-muted" style="margin:0;">Noch keine Teams angelegt.</p>
+        <?php endif; ?>
       </div>
     </div>
     <div class="form-row">
