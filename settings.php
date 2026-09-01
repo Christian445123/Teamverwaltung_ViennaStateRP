@@ -3,40 +3,74 @@ require __DIR__ . '/bootstrap.php';
 $user = Auth::requirePermission('discord.manage');
 $db = DB::get();
 
+/**
+ * Importiert/aktualisiert Discord-Server-Mitglieder als Teamverwaltung-Mitglieder.
+ * Nur wer die "Team"- oder "High-Team"-Rolle hat, wird berücksichtigt (falls keine der
+ * beiden Rollen zugeordnet ist: alle Server-Mitglieder, altes Verhalten als Fallback).
+ * Gibt [created, matched, skipped, gated] zurück.
+ */
+function import_eligible_discord_members(PDO $db): array
+{
+    $members = DiscordClient::fetchGuildMembers();
+    $teamRoleId = $db->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'team'")->fetchColumn();
+    $highTeamRoleId = $db->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'high_team'")->fetchColumn();
+    $gated = ($teamRoleId || $highTeamRoleId);
+
+    $created = 0; $matched = 0; $skipped = 0;
+    $lowestRank = $db->query("SELECT id FROM ranks ORDER BY level ASC LIMIT 1")->fetchColumn();
+
+    foreach ($members as $m) {
+        if (empty($m['user']) || !empty($m['user']['bot'])) continue;
+        $roles = $m['roles'] ?? [];
+        $eligible = !$gated
+            || ($teamRoleId && in_array($teamRoleId, $roles, true))
+            || ($highTeamRoleId && in_array($highTeamRoleId, $roles, true));
+        if (!$eligible) { $skipped++; continue; }
+
+        $discordId = $m['user']['id'];
+        $stmt = $db->prepare("SELECT id FROM users WHERE discord_id = ?");
+        $stmt->execute([$discordId]);
+        $existing = $stmt->fetch();
+        $name = ($m['nick'] ?? null) ?: ($m['user']['global_name'] ?? $m['user']['username']);
+        if ($existing) {
+            $db->prepare("UPDATE users SET discord_username=?, discord_avatar=?, updated_at=NOW() WHERE id=?")
+               ->execute([$m['user']['username'], $m['user']['avatar'], $existing['id']]);
+            $matched++;
+        } else {
+            $db->prepare("INSERT INTO users (discord_id, discord_username, discord_avatar, display_name, rank_id, status)
+                VALUES (?, ?, ?, ?, ?, 'active')")
+               ->execute([$discordId, $m['user']['username'], $m['user']['avatar'], $name, $lowestRank ?: null]);
+            $created++;
+        }
+    }
+
+    return [$created, $matched, $skipped, $gated];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
 
     if ($action === 'sync_members') {
-        $members = DiscordClient::fetchGuildMembers();
-        $teamRoleId = $db->query("SELECT discord_role_id FROM discord_extra_roles WHERE slug = 'team'")->fetchColumn();
-        $created = 0; $matched = 0; $skipped = 0;
-        $lowestRank = $db->query("SELECT id FROM ranks ORDER BY level ASC LIMIT 1")->fetchColumn();
-        foreach ($members as $m) {
-            if (empty($m['user']) || !empty($m['user']['bot'])) continue;
-            if ($teamRoleId && !in_array($teamRoleId, $m['roles'] ?? [], true)) { $skipped++; continue; }
-            $discordId = $m['user']['id'];
-            $stmt = $db->prepare("SELECT id FROM users WHERE discord_id = ?");
-            $stmt->execute([$discordId]);
-            $existing = $stmt->fetch();
-            $name = ($m['nick'] ?? null) ?: ($m['user']['global_name'] ?? $m['user']['username']);
-            if ($existing) {
-                $db->prepare("UPDATE users SET discord_username=?, discord_avatar=?, updated_at=NOW() WHERE id=?")
-                   ->execute([$m['user']['username'], $m['user']['avatar'], $existing['id']]);
-                $matched++;
-            } else {
-                $db->prepare("INSERT INTO users (discord_id, discord_username, discord_avatar, display_name, rank_id, status)
-                    VALUES (?, ?, ?, ?, ?, 'active')")
-                   ->execute([$discordId, $m['user']['username'], $m['user']['avatar'], $name, $lowestRank ?: null]);
-                $created++;
-            }
-        }
+        [$created, $matched, $skipped, $gated] = import_eligible_discord_members($db);
         $msg = "Sync abgeschlossen: {$created} neue, {$matched} aktualisierte Mitglieder.";
-        if ($teamRoleId) {
-            $msg .= " {$skipped} ohne \"Team\"-Rolle übersprungen.";
-        } else {
-            $msg .= ' Hinweis: „Team"-Rolle ist nicht zugeordnet, es wurden alle Server-Mitglieder importiert.';
-        }
+        $msg .= $gated
+            ? " {$skipped} ohne \"Team\"-/\"High-Team\"-Rolle übersprungen."
+            : ' Hinweis: weder „Team"- noch „High-Team"-Rolle ist zugeordnet, es wurden alle Server-Mitglieder importiert.';
+        flash('success', $msg);
+    } elseif ($action === 'reset_and_resync_members') {
+        // Löscht alle Mitglieder außer dem eigenen (aktuell eingeloggten) Konto — verhindert,
+        // dass man sich selbst aus der Teamverwaltung aussperrt — und importiert danach neu,
+        // ausschließlich Mitglieder mit "Team"- oder "High-Team"-Rolle.
+        $deleted = $db->prepare("DELETE FROM users WHERE id != ?");
+        $deleted->execute([$user['id']]);
+        $deletedCount = $deleted->rowCount();
+
+        [$created, $matched, $skipped, $gated] = import_eligible_discord_members($db);
+        $msg = "{$deletedCount} Mitglied(er) entfernt. Neu importiert: {$created}, aktualisiert: {$matched}.";
+        $msg .= $gated
+            ? " {$skipped} ohne \"Team\"-/\"High-Team\"-Rolle übersprungen."
+            : ' Hinweis: weder „Team"- noch „High-Team"-Rolle ist zugeordnet, es wurden alle Server-Mitglieder importiert.';
         flash('success', $msg);
     } elseif ($action === 'sync_all_roles') {
         $activeUsers = $db->query("SELECT * FROM users WHERE status='active' AND discord_id IS NOT NULL")->fetchAll();
@@ -138,7 +172,7 @@ require __DIR__ . '/includes/header.php';
 <div class="card settings-section">
   <h2>Mitglieder &amp; Rollen</h2>
   <div class="btn-row">
-    <form method="post" data-confirm="Mitglieder mit der &quot;Team&quot;-Rolle aus Discord importieren/abgleichen?">
+    <form method="post" data-confirm="Mitglieder mit der &quot;Team&quot;- oder &quot;High-Team&quot;-Rolle aus Discord importieren/abgleichen?">
       <?= csrf_field() ?>
       <input type="hidden" name="action" value="sync_members">
       <button class="btn secondary" type="submit">Mitglieder aus Discord synchronisieren</button>
@@ -155,7 +189,7 @@ require __DIR__ . '/includes/header.php';
     </form>
   </div>
   <p class="field-hint" style="margin-top:10px;">Rollen-Zuordnungen werden pro Rang und Team unter <a href="<?= url('ranks.php') ?>" style="color:var(--accent);">Ränge</a> bzw. <a href="<?= url('teams.php') ?>" style="color:var(--accent);">Teams</a> festgelegt. Die unten konfigurierte „Team"-Rolle ist dabei Voraussetzung: nur Mitglieder, die diese Rolle bereits auf Discord haben, werden überhaupt synchronisiert — in beide Richtungen.
-  <strong>Mitglieder synchronisieren</strong> importiert nur Server-Mitglieder mit der „Team"-Rolle (ohne Zuordnung: alle Mitglieder).
+  <strong>Mitglieder synchronisieren</strong> importiert nur Server-Mitglieder mit der „Team"- oder „High-Team"-Rolle (ist keine der beiden zugeordnet: alle Mitglieder).
   <strong>Rang/Team → Discord-Rollen</strong> überträgt den in der Teamverwaltung gesetzten Rang/Team als Discord-Rolle — aber nur an Mitglieder, die die „Team"-Rolle bereits haben; die „Team"-Rolle selbst vergibt die Teamverwaltung nie, die bleibt reine Discord-Pflege.
   <strong>Discord-Rollen → Rang</strong> macht es umgekehrt: anhand der aktuellen Discord-Rollen eines Mitglieds mit „Team"-Rolle wird der Rang in der Teamverwaltung ggf. hochgestuft (nie automatisch heruntergestuft) — das passiert außerdem automatisch bei jeder Discord-Anmeldung.</p>
   <?php if ($roles): ?>
@@ -205,6 +239,16 @@ require __DIR__ . '/includes/header.php';
     <button class="btn" type="submit">Speichern</button>
   </form>
   <p class="field-hint" style="margin-top:10px;">„High-Team“ wird bei jeder Discord-Anmeldung sowie über „Discord-Rollen → Rang übernehmen“ gelesen und als Badge bei den Mitgliedern angezeigt.</p>
+</div>
+
+<div class="card settings-section" style="border-color:var(--danger);">
+  <h2>Gefahrenzone: Mitgliederliste zurücksetzen</h2>
+  <p class="text-muted" style="margin-top:-8px;">Entfernt <strong>alle</strong> Mitglieder aus der Teamverwaltung (dein eigenes, gerade eingeloggtes Konto bleibt erhalten) und importiert danach neu — ausschließlich Mitglieder mit „Team"- oder „High-Team"-Rolle. Löscht dabei auch alle Zu-/Absagen zu Besprechungen der entfernten Mitglieder; Besprechungen selbst bleiben erhalten. Nicht rückgängig zu machen.</p>
+  <form method="post" data-confirm="Wirklich ALLE Mitglieder entfernen (außer dein eigenes Konto) und danach nur Mitglieder mit Team-/High-Team-Rolle neu importieren? Das kann nicht rückgängig gemacht werden.">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="reset_and_resync_members">
+    <button class="btn danger" type="submit">Mitglieder entfernen &amp; neu synchronisieren</button>
+  </form>
 </div>
 <?php endif; ?>
 
