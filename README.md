@@ -191,7 +191,14 @@ Danach stehen zur Verfügung:
   (`discord_interactions.php`). Ein Klick beantwortet die Besprechung sofort — legt bei
   Bedarf automatisch ein minimales Mitgliedskonto an, prüft die „Team"-Rolle sowie die
   Berechtigung `meetings.respond` und antwortet ephemeral (nur für den Klickenden
-  sichtbar) mit einer Bestätigung.
+  sichtbar) mit einer Bestätigung. **Voraussetzung dafür sind `DISCORD_BOT_TOKEN` +
+  `DISCORD_ANNOUNCE_CHANNEL_ID`** (nicht nur ein Webhook): ein normaler Kanal-Webhook kann
+  Klicks auf Buttons mit eigener ID nicht zuverlässig an den Interactions Endpoint
+  ausliefern, nur eine vom Bot selbst gesendete Nachricht. Ist zusätzlich
+  `DISCORD_WEBHOOK_URL` gesetzt, hat der Bot-Kanal für die Ankündigung automatisch Vorrang,
+  sobald interaktive Buttons gebraucht werden; ohne Bot-Kanal postet der Webhook die
+  Ankündigung trotzdem, dann aber nur mit dem „Zum Meeting"-Link (der funktioniert immer,
+  auch über Webhook).
 
 Discord-Funktionen sind komplett optional — ohne Konfiguration funktioniert die
 Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.

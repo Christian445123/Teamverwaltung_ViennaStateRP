@@ -484,13 +484,21 @@ class DiscordClient
     }
 
     /**
-     * Post a message announcing a meeting, via webhook (preferred) or bot channel message.
+     * Post a message announcing a meeting, via bot channel message or webhook.
      * Als Embed mit Vom/Bis/Ort/Thema/Inhalt-Feldern, pingt die Discord-Rollen aller
      * eingeladenen Ränge (+ Team-Rolle bei team-gebundenen Besprechungen). Ist ein Discord
      * Public Key konfiguriert (Interactions Endpoint eingerichtet), bekommt die Nachricht
      * Teilnehmen/Vielleicht/Absagen-Buttons, mit denen direkt in Discord geantwortet werden
      * kann — ohne Portal-Login (siehe discord_interactions.php). Ein "Zum Meeting"-Link-Button
      * (führt ins Dashboard) wird immer angehängt.
+     *
+     * Transport-Wahl: Ein normaler Kanal-Webhook liefert Klicks auf Buttons mit eigener
+     * custom_id NICHT zuverlässig an unseren Interactions Endpoint aus — nur eine vom Bot
+     * selbst gesendete Nachricht ist sicher mit unserer Application verknüpft. Werden
+     * interaktive Buttons gebraucht (Public Key gesetzt) und ist ein Bot-Kanal konfiguriert,
+     * wird deshalb der Bot bevorzugt, auch wenn zusätzlich ein Webhook konfiguriert ist.
+     * Ohne Bot-Kanal wird über den Webhook nur der (immer funktionierende) Link-Button
+     * mitgeschickt, damit keine kaputten Buttons angezeigt werden.
      */
     public static function announceMeeting(array $meeting): ?string
     {
@@ -529,8 +537,14 @@ class DiscordClient
             $payload['allowed_mentions'] = ['parse' => [], 'roles' => $mentionRoleIds];
         }
 
+        $headers = self::botHeaders();
+        $channelId = Settings::get('discord_announce_channel_id');
+        $canUseBotChannel = $headers && $channelId;
+        $needsInteractiveButtons = $meetingId && Settings::get('discord_public_key');
+        $useBotForInteractive = $needsInteractiveButtons && $canUseBotChannel;
+
         $components = [];
-        if ($meetingId && Settings::get('discord_public_key')) {
+        if ($useBotForInteractive) {
             $components[] = self::rsvpActionRow($meetingId);
         }
         if ($meetingId) {
@@ -545,15 +559,18 @@ class DiscordClient
             $payload['components'] = $components;
         }
 
+        if ($useBotForInteractive) {
+            $result = self::request('POST', self::API . "/channels/{$channelId}/messages", json_encode($payload), $headers);
+            return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
+        }
+
         $webhook = Settings::get('discord_webhook_url');
         if ($webhook) {
             $result = self::request('POST', $webhook . '?wait=true', json_encode($payload), ['Content-Type: application/json']);
             return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
         }
 
-        $headers = self::botHeaders();
-        $channelId = Settings::get('discord_announce_channel_id');
-        if ($headers && $channelId) {
+        if ($canUseBotChannel) {
             $result = self::request('POST', self::API . "/channels/{$channelId}/messages", json_encode($payload), $headers);
             return $result['ok'] ? (string) ($result['data']['id'] ?? '') : null;
         }
