@@ -196,10 +196,12 @@ Danach stehen zur Verfügung:
   Besprechungen). Ein „Zum Meeting"-Button verlinkt immer ins Dashboard.
 - **Teilnehmen/Absagen direkt in Discord, ohne Portal-Login**: ist `DISCORD_PUBLIC_KEY`
   gesetzt, hat die Ankündigungs-Nachricht zusätzlich Teilnehmen/Vielleicht/Absagen-Buttons
-  (`discord_interactions.php`). Ein Klick beantwortet die Besprechung sofort — legt bei
-  Bedarf automatisch ein minimales Mitgliedskonto an, prüft die „Team"-Rolle sowie die
-  Berechtigung `meetings.respond` und antwortet ephemeral (nur für den Klickenden
-  sichtbar) mit einer Bestätigung. **Voraussetzung dafür sind `DISCORD_BOT_TOKEN` +
+  (`discord_interactions.php`). Ein Klick quittiert sofort mit „Bot denkt nach …" (Discords
+  empfohlenes Muster für Interaktionen, die länger als die von Discord vorgegebenen 3
+  Sekunden dauern könnten) und verarbeitet danach in Ruhe: legt bei Bedarf automatisch ein
+  minimales Mitgliedskonto an, prüft die „Team"-Rolle sowie die Berechtigung
+  `meetings.respond`, und ersetzt die „denkt nach …"-Nachricht per Follow-up durch eine
+  ephemerale (nur für den Klickenden sichtbare) Bestätigung. **Voraussetzung dafür sind `DISCORD_BOT_TOKEN` +
   `DISCORD_ANNOUNCE_CHANNEL_ID`** (nicht nur ein Webhook): ein normaler Kanal-Webhook kann
   Klicks auf Buttons mit eigener ID nicht zuverlässig an den Interactions Endpoint
   ausliefern, nur eine vom Bot selbst gesendete Nachricht. Ist zusätzlich
@@ -217,6 +219,21 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
   Zu-/Absagen-Liste einer Besprechung sowie eine Anwesenheitsstatistik pro Mitglied
   (X von Y erfassten Besprechungen, in %) im Mitglied-Formular; jedes Mitglied sieht seine
   eigene Statistik zusätzlich im eigenen Profil, unabhängig von der Berechtigung.
+- **Stellvertreter-Antworten**: mit der Berechtigung `meetings.respond_for_others` kann man
+  auf der Besprechungsseite für andere Mitglieder zu-/absagen (z. B. wenn die Abmeldung
+  über Discord-Chat oder eine andere Plattform reinkommt statt über einen der offiziellen
+  Wege).
+- **Absage aktualisiert die Discord-Ankündigung**: statt die alte Nachricht unverändert
+  stehen zu lassen, wird sie beim Absagen bearbeitet — großes rotes „❌ BESPRECHUNG
+  ABGESAGT"-Embed, die Zu-/Absage-Buttons werden entfernt (der „Zum Meeting"-Link bleibt).
+  Funktioniert unabhängig davon, ob ursprünglich per Bot-Kanal oder Webhook gepostet wurde.
+- **Teilnehmer werden manuell ausgewählt**: beim Anlegen/Bearbeiten einer Besprechung gibt
+  es eine Checkbox-Liste aller aktiven Mitglieder statt automatischer Team-Zuordnung — bei
+  neuen Besprechungen initial alle angehakt, bei bestehenden die aktuelle Teilnehmerliste.
+  Das Team-Feld im Formular dient nur noch als Grundlage für den Discord-Rollen-Ping in der
+  Ankündigung.
+- **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
+  1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
 
 ## Berechtigungen
 
@@ -229,6 +246,7 @@ Berechtigung ist unabhängig pro Rang als Checkbox togglebar, keine ist fest ver
   Portal als auch über die Discord-Buttons
 - `meetings.view_attendance` – Zu-/Absagen-Liste & Anwesenheitsstatistik einsehen,
   Anwesenheit erfassen (zusammen mit `meetings.manage`)
+- `meetings.respond_for_others` – für andere Mitglieder zu-/absagen (Stellvertretung)
 - `teams.manage` – Teams verwalten
 - `ranks.manage` – Ränge & Berechtigungen verwalten
 - `discord.manage` – Discord-Sync auslösen (Einstellungen selbst kommen aus `.env`)
