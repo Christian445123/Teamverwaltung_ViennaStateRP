@@ -14,7 +14,9 @@ class DiscordClient
             'client_id' => $clientId,
             'redirect_uri' => self::redirectUri(),
             'response_type' => 'code',
-            'scope' => 'identify email',
+            // Datenminimierung (Art. 5 Abs. 1 lit. c DSGVO): nur "identify" anfordern — die
+            // E-Mail-Adresse wird von der Teamverwaltung nirgends ausgelesen/gespeichert.
+            'scope' => 'identify',
             'prompt' => 'consent',
         ];
         return 'https://discord.com/oauth2/authorize?' . http_build_query($params);

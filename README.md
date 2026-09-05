@@ -235,6 +235,27 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
 - **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
   1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
 
+## Impressum & Datenschutzerklärung
+
+`impressum.php` und `datenschutz.php` sind ohne Login erreichbar (Pflicht nach § 5 ECG/TMG)
+und im Footer jeder Seite verlinkt. Betreiberdaten (ViennaStateRP, Anschrift, Kontakt,
+zuständige Datenschutzbehörde) sind identisch zu denen im Schwester-Projekt
+`ViennaStateRP/Website` übernommen — dieselbe Organisation. Die Datenschutzerklärung
+beschreibt die tatsächlichen Datenflüsse dieser Anwendung (Server-Logs, Discord-OAuth mit
+minimalem `identify`-Scope, Discord-Rollen-Abgleich, Besprechungs-/Anwesenheitsdaten,
+Notizen, Änderungsprotokoll) und braucht **keinen Cookie-Banner**, da nur ein technisch
+notwendiger Session-Cookie gesetzt wird (kein Tracking/Analytics).
+
+**Wichtig, bevor das live geht:** Das ist eine sorgfältig auf diese Anwendung zugeschnittene
+Vorlage, aber keine Rechtsberatung. Vor dem produktiven Einsatz prüfen/anpassen:
+- Ob die übernommenen Betreiberdaten weiterhin aktuell sind.
+- Den Namen des tatsächlichen Hosting-Anbieters (aktuell generisch als „unser
+  Hosting-Anbieter" formuliert) und ob ein Auftragsverarbeitungsvertrag (AVV) mit ihm
+  besteht.
+- Die tatsächliche Log-Aufbewahrungsdauer bei eurem Hoster/CloudPanel-Setup.
+- Ob Discords aktuelle Datenschutzbedingungen weiterhin so referenziert werden können.
+Im Zweifel von einer Juristin/einem Datenschutzbeauftragten gegenlesen lassen.
+
 ## Berechtigungen
 
 Berechtigungen werden über **Ränge** vergeben (Verwaltung unter *Ränge*) — jede
