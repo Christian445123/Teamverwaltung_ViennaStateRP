@@ -73,34 +73,14 @@ function run_shell_command(string $cmd): array
 }
 
 /**
- * Führt einen "pm2 ..."-Befehl aus, nachdem explizit alle gängigen Shell-Startdateien geladen
- * wurden. Weder reines HOME setzen noch "bash -lc" (Login-Shell) reichten: der PM2-Daemon, den
- * die SSH-Session kennt, wird offenbar über etwas gefunden, das nur eine bestimmte Startdatei
- * lädt (typischerweise nvm/PM2_HOME/PATH-Setup) — welche genau, ist je nach Server-Setup
- * unterschiedlich (mal .bashrc, mal .bash_profile/.profile). Statt uns auf Login-/Interactive-
- * Shell-Konventionen zu verlassen (die sich zwischen Distros unterscheiden), sourcen wir hier
- * einfach alle drei Kandidaten der Reihe nach, still und ohne Abbruch falls eine fehlt.
- */
-function run_pm2_command(string $args): array
-{
-    $loadRcFiles = 'for f in ~/.bashrc ~/.bash_profile ~/.profile; do [ -f "$f" ] && . "$f" >/dev/null 2>&1; done; ';
-    $result = run_shell_command('bash -c ' . escapeshellarg($loadRcFiles . 'pm2 ' . $args));
-    if (!$result['ok']) {
-        // Schlägt es trotzdem fehl, direkt die Diagnosedaten mitliefern, statt im Blindflug
-        // weiter zu raten.
-        $diag = trim(run_shell_command('bash -c ' . escapeshellarg($loadRcFiles . 'echo whoami=$(whoami) HOME=$HOME PM2_HOME=$PM2_HOME; which pm2; pm2 --version'))['output']);
-        $pm2List = trim(run_shell_command('bash -c ' . escapeshellarg($loadRcFiles . 'pm2 jlist'))['output']);
-        $result['output'] .= "\n\n[Diagnose] {$diag}\npm2 jlist: " . mb_substr($pm2List, 0, 800);
-    }
-    return $result;
-}
-
-/**
  * Git-Deploy nach dem Vorbild von Discordbot_Follower/deploy.sh bzw. dessen Webpanel-Button
  * "Deployen (git pull)": fast-forward-only, damit lokale Server-Änderungen nie stillschweigend
  * überschrieben werden — schlägt in dem Fall sauber fehl statt zu resetten. Ein Neustart eines
  * Prozesses (wie beim PM2-Bot) entfällt hier bewusst: PHP-Dateien werden pro Request neu
- * eingelesen, ein Deploy wirkt also sofort ohne Restart.
+ * eingelesen, ein Deploy wirkt also sofort ohne Restart. Der RSVP-Gateway-Bot (rsvp-bot/) läuft
+ * separat per PM2 und wird nach Änderungen dort manuell per SSH neu gestartet (siehe
+ * rsvp-bot/README.md) — ein automatischer Neustart aus PHP heraus hat sich als nicht
+ * zuverlässig genug erwiesen (abweichende Shell-Umgebung zur SSH-Session).
  */
 function deploy_from_git(): array
 {
@@ -129,20 +109,11 @@ function deploy_from_git(): array
     $diffStat = trim(run_shell_command('git diff --stat ' . escapeshellarg($before) . ' ' . escapeshellarg($after))['output']);
     $message = "Deployment erfolgreich: {$before} → {$after}.";
 
-    // Der RSVP-Gateway-Bot (rsvp-bot/) läuft dauerhaft per PM2 und merkt von neuen Dateien nichts
-    // automatisch (anders als PHP, das pro Request neu eingelesen wird) — bei Änderungen dort
-    // gleich mit neu starten. Best-effort: pm2 könnte fehlen/nicht eingerichtet sein, das darf den
-    // eigentlichen Deploy-Erfolg nicht verfälschen.
+    // Hinweis, falls sich rsvp-bot/ geändert hat — der Neustart selbst läuft nicht mehr
+    // automatisch (siehe Docblock oben), nur noch dieser Hinweis, damit es nicht vergessen wird.
     $changedFiles = run_shell_command('git diff --name-only ' . escapeshellarg($before) . ' ' . escapeshellarg($after))['output'];
     if (str_contains($changedFiles, 'rsvp-bot/')) {
-        $restart = run_pm2_command('restart teamverwaltung-rsvp-bot');
-        if ($restart['ok']) {
-            $message .= ' RSVP-Bot wurde neu gestartet.';
-            audit_log('settings.rsvp_bot_restart', 'RSVP-Bot nach Deploy erfolgreich neu gestartet (' . $before . ' → ' . $after . ').');
-        } else {
-            $message .= ' Hinweis: rsvp-bot/ hat sich geändert, „pm2 restart teamverwaltung-rsvp-bot” ist aber fehlgeschlagen — manuell neu starten. Fehler: ' . trim($restart['output']);
-            audit_log('settings.rsvp_bot_restart_failed', 'RSVP-Bot-Neustart nach Deploy fehlgeschlagen: ' . trim($restart['output']));
-        }
+        $message .= ' Hinweis: rsvp-bot/ hat sich geändert — Bot manuell per SSH neu starten ("pm2 restart teamverwaltung-rsvp-bot").';
     }
 
     return ['ok' => true, 'message' => $message, 'changed' => true, 'diff' => $diffStat];
@@ -176,18 +147,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash($result['ok'] ? 'success' : 'error', $result['message']);
         audit_log('settings.deploy', $result['message']);
         DiscordClient::postDeployLog($result['ok'], $result['message'], $result['diff'] ?? '', $user['display_name']);
-        redirect(url('settings.php'));
-    }
-
-    if ($action === 'restart_bot') {
-        $restart = run_pm2_command('restart teamverwaltung-rsvp-bot');
-        if ($restart['ok']) {
-            flash('success', 'RSVP-Bot wurde neu gestartet.');
-            audit_log('settings.rsvp_bot_restart', 'RSVP-Bot manuell neu gestartet (Button).');
-        } else {
-            flash('error', '„pm2 restart teamverwaltung-rsvp-bot" ist fehlgeschlagen: ' . trim($restart['output']));
-            audit_log('settings.rsvp_bot_restart_failed', 'Manueller RSVP-Bot-Neustart fehlgeschlagen: ' . trim($restart['output']));
-        }
         redirect(url('settings.php'));
     }
 
@@ -316,14 +275,9 @@ require __DIR__ . '/includes/header.php';
       <input type="hidden" name="action" value="deploy">
       <button class="btn" type="submit">🚀 Jetzt deployen (git pull)</button>
     </form>
-    <form method="post">
-      <?= csrf_field() ?>
-      <input type="hidden" name="action" value="restart_bot">
-      <button class="btn secondary" type="submit">🔁 RSVP-Bot neustarten</button>
-    </form>
     <button class="btn secondary" type="button" onclick="location.reload()">🔄 Seite neu laden</button>
   </div>
-  <p class="field-hint" style="margin-top:10px;">„RSVP-Bot neustarten" führt <code>pm2 restart teamverwaltung-rsvp-bot</code> aus — nützlich, falls der automatische Neustart nach einem Deploy fehlschlägt (siehe <code>rsvp-bot/README.md</code>).</p>
+  <p class="field-hint" style="margin-top:10px;">Ändert sich dabei etwas unter <code>rsvp-bot/</code>, den Bot danach manuell per SSH neu starten: <code>pm2 restart teamverwaltung-rsvp-bot</code> (siehe <code>rsvp-bot/README.md</code>).</p>
 </div>
 
 <div class="card settings-section">

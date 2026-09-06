@@ -316,10 +316,12 @@ Follower-Bot **fast-forward-only**: Gibt es auf dem Server lokale Änderungen,
 bricht der Vorgang sauber ab (Fehlermeldung statt stillem Überschreiben) und
 verlangt manuellen Eingriff. Für PHP-Dateien entfällt ein Prozess-Neustart —
 werden pro Request neu eingelesen, ein Deploy wirkt also sofort. Ändert sich dabei
-etwas unter `rsvp-bot/` (siehe unten), wird zusätzlich automatisch
-`pm2 restart teamverwaltung-rsvp-bot` ausgeführt (best-effort — falls PM2 dafür
-noch nicht eingerichtet ist, erscheint stattdessen ein Hinweis zum manuellen
-Neustart, der eigentliche Deploy gilt trotzdem als erfolgreich).
+etwas unter `rsvp-bot/` (siehe unten), erscheint dafür ein Hinweis in der
+Deploy-Meldung — der Bot-Prozess selbst muss danach manuell per SSH neu gestartet
+werden (`pm2 restart teamverwaltung-rsvp-bot`, siehe `rsvp-bot/README.md`). Ein
+automatischer Neustart aus PHP heraus wurde bewusst wieder entfernt: die
+Shell-Umgebung von PHP-FPM unterscheidet sich zu stark von einer interaktiven
+SSH-Session, als dass PM2 den richtigen Daemon zuverlässig gefunden hätte.
 
 Jeder Klick wird zusätzlich zum Aktivitäts-Log auch in den Development-/Fehler-Log-Kanal
 gepostet (grün bei Erfolg, rot bei Fehlschlag mit dem Grund) — so ist im gleichen Kanal wie

@@ -54,12 +54,13 @@ Dort sollte `[rsvp-bot] bereit als VSRP I Server#....` erscheinen.
 ## Neustart nach Code-Änderungen
 
 Der übliche **„🚀 Jetzt deployen"**-Button in der Teamverwaltung (unter *Discord &
-Einstellungen*) zieht per `git pull` auch Änderungen an diesem Ordner und versucht danach
-automatisch `pm2 restart teamverwaltung-rsvp-bot` — das klappt aber nur, wenn PHP-FPM denselben
-PM2-Daemon erreicht wie eine interaktive SSH-Session (abhängig von `$HOME`/`$PATH`, auf manchen
-Setups nicht der Fall). Schlägt das fehl, gibt's daneben extra den Button **„🔁 RSVP-Bot
-neustarten"**, der genau denselben Befehl manuell auslöst — beide Wege loggen das Ergebnis
-zusätzlich ins Aktivitäts-Log. Alternativ direkt per SSH:
+Einstellungen*) zieht per `git pull` auch Änderungen an diesem Ordner — der laufende Bot-Prozess
+merkt davon aber nichts automatisch (anders als PHP-Dateien, die pro Request neu eingelesen
+werden). Ein automatischer Neustart aus PHP heraus wurde bewusst wieder entfernt: die
+Shell-Umgebung von PHP-FPM unterscheidet sich zu stark von einer interaktiven SSH-Session
+(`$HOME`/`$PATH`/ggf. nvm-Setup in `.bashrc`), als dass PM2 dabei zuverlässig denselben Daemon
+gefunden hätte wie die SSH-Session, in der der Bot ursprünglich gestartet wurde. Nach Änderungen
+an `rsvp-bot/` deshalb manuell per SSH:
 
 ```bash
 cd rsvp-bot && pm2 restart teamverwaltung-rsvp-bot
