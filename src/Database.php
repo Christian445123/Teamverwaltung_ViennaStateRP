@@ -5,7 +5,7 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 class DB
 {
     // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
-    private const SCHEMA_VERSION = 6;
+    private const SCHEMA_VERSION = 7;
 
     private static ?PDO $instance = null;
 
@@ -61,6 +61,19 @@ class DB
         if ($currentVersion >= self::SCHEMA_VERSION) {
             return;
         }
+
+        // Für ausgewählte Discord-Einstellungen (Webhooks, Ankündigungs-Channel-ID) per UI
+        // überschreibbar statt nur in der .env (siehe Settings::DB_OVERRIDABLE) — Werte hier
+        // haben Vorrang vor der .env, ein leeres/fehlendes Feld fällt auf die .env zurück.
+        // Sensible Werte werden wie in der .env optional mit "ENC:"-Präfix verschlüsselt
+        // gespeichert (Env::encrypt()/decryptIfNeeded()), echte Kern-Zugangsdaten (Bot-Token,
+        // Client-Secret, Public Key) bleiben bewusst ausschließlich in der .env.
+        $db->exec("CREATE TABLE IF NOT EXISTS app_settings (
+            `key` VARCHAR(100) NOT NULL,
+            value TEXT NULL,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (`key`)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
 
         $db->exec("CREATE TABLE IF NOT EXISTS ranks (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,

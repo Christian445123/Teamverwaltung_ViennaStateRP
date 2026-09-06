@@ -110,6 +110,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'save_webhooks') {
+        $changed = [];
+        foreach (Settings::DB_OVERRIDABLE as $key) {
+            $newValue = trim($_POST[$key] ?? '');
+            $before = Settings::get($key) ?? '';
+            Settings::set($key, $newValue);
+            if ($newValue !== $before) {
+                $changed[] = $key;
+            }
+        }
+        // Bewusst KEINE Klartext-Werte im Log — Webhook-URLs sind Zugangsdaten, die würden sonst
+        // in den Aktivitäts-Log-Kanal selbst durchsickern. Nur welche Felder sich geändert haben.
+        if ($changed) {
+            audit_log('settings.save_webhooks', 'Geändert: ' . implode(', ', $changed));
+        }
+        flash('success', 'Webhooks & Kanäle gespeichert.');
+        redirect(url('settings.php'));
+    }
+
     if ($action === 'deploy') {
         $result = deploy_from_git();
         flash($result['ok'] ? 'success' : 'error', $result['message']);
@@ -246,7 +265,7 @@ require __DIR__ . '/includes/header.php';
 
 <div class="card settings-section">
   <h2>Konfigurationsstatus</h2>
-  <p class="text-muted" style="margin-top:-8px;">Alle Zugangsdaten (Datenbank &amp; Discord) werden ausschließlich in der Datei <code>.env</code> im Projektstammverzeichnis gepflegt — nicht über diese Oberfläche. Das verhindert, dass Secrets in der Datenbank landen. Vorlage: <code>.env.example</code>.</p>
+  <p class="text-muted" style="margin-top:-8px;">Kern-Zugangsdaten (Datenbank, Client-Secret, Bot-Token, Public Key) werden ausschließlich in der Datei <code>.env</code> im Projektstammverzeichnis gepflegt — nicht über diese Oberfläche. Vorlage: <code>.env.example</code>. Webhooks &amp; die Ankündigungs-Channel-ID lassen sich dagegen unten direkt hier pflegen.</p>
 
   <?php status_row('App-URL', (bool) Settings::get('app_url'), 'APP_URL'); ?>
   <?php status_row('Discord Client ID', (bool) Settings::get('discord_client_id'), 'DISCORD_CLIENT_ID'); ?>
@@ -261,6 +280,36 @@ require __DIR__ . '/includes/header.php';
   <?php status_row('Development-/Fehler-Log-Webhook', (bool) Settings::get('discord_dev_log_webhook_url'), 'DISCORD_DEV_LOG_WEBHOOK_URL'); ?>
 
   <p class="field-hint" style="margin-top:14px;">Redirect-URI für das Discord Developer Portal: <code><?= e(DiscordClient::redirectUri()) ?></code><br>Interactions Endpoint URL (für Zu-/Absage-Buttons ohne Login): <code><?= e(Settings::appUrl() . '/discord_interactions.php') ?></code><br>Wichtig: Für funktionierende Zu-/Absage-Buttons müssen <strong>Bot-Token + Ankündigungs-Channel-ID</strong> gesetzt sein — ein reiner Webhook kann Button-Klicks nicht zuverlässig an <code>DISCORD_PUBLIC_KEY</code> ausliefern (ist zusätzlich ein Webhook konfiguriert, hat der Bot bei Buttons trotzdem Vorrang; ohne Bot-Kanal zeigt die Webhook-Nachricht nur den immer funktionierenden „Zum Meeting"-Link).</p>
+</div>
+
+<div class="card settings-section">
+  <h2>Webhooks &amp; Kanäle</h2>
+  <p class="text-muted" style="margin-top:-8px;">Direkt hier pflegbar, ohne die <code>.env</code> auf dem Server anzufassen. Ein gesetzter Wert überschreibt die <code>.env</code>; leer lassen und speichern setzt den Override zurück (dann gilt wieder der <code>.env</code>-Wert, falls vorhanden). Werte werden — genau wie in der <code>.env</code> — verschlüsselt gespeichert.</p>
+  <form method="post">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="save_webhooks">
+    <div class="field">
+      <label>Besprechungs-Ankündigungs-Webhook <?= Settings::hasDbOverride('discord_webhook_url') ? '<span class="badge outline" style="font-size:10px;">überschreibt .env</span>' : '' ?></label>
+      <input type="text" name="discord_webhook_url" value="<?= e(Settings::get('discord_webhook_url') ?? '') ?>" placeholder="https://discord.com/api/webhooks/…">
+    </div>
+    <div class="field">
+      <label>Besprechungs-Ankündigungs-Channel-ID <?= Settings::hasDbOverride('discord_announce_channel_id') ? '<span class="badge outline" style="font-size:10px;">überschreibt .env</span>' : '' ?></label>
+      <input type="text" name="discord_announce_channel_id" value="<?= e(Settings::get('discord_announce_channel_id') ?? '') ?>" placeholder="z. B. 1524686181994856488">
+    </div>
+    <div class="field">
+      <label>Aktivitäts-Log-Webhook (Teamlogs) <?= Settings::hasDbOverride('discord_log_webhook_url') ? '<span class="badge outline" style="font-size:10px;">überschreibt .env</span>' : '' ?></label>
+      <input type="text" name="discord_log_webhook_url" value="<?= e(Settings::get('discord_log_webhook_url') ?? '') ?>" placeholder="https://discord.com/api/webhooks/…">
+    </div>
+    <div class="field">
+      <label>Bewerbungs-Benachrichtigungs-Webhook <?= Settings::hasDbOverride('discord_applications_webhook_url') ? '<span class="badge outline" style="font-size:10px;">überschreibt .env</span>' : '' ?></label>
+      <input type="text" name="discord_applications_webhook_url" value="<?= e(Settings::get('discord_applications_webhook_url') ?? '') ?>" placeholder="https://discord.com/api/webhooks/…">
+    </div>
+    <div class="field">
+      <label>Development-/Fehler-Log-Webhook <?= Settings::hasDbOverride('discord_dev_log_webhook_url') ? '<span class="badge outline" style="font-size:10px;">überschreibt .env</span>' : '' ?></label>
+      <input type="text" name="discord_dev_log_webhook_url" value="<?= e(Settings::get('discord_dev_log_webhook_url') ?? '') ?>" placeholder="https://discord.com/api/webhooks/…">
+    </div>
+    <button class="btn" type="submit">Speichern</button>
+  </form>
 </div>
 
 <div class="card settings-section">

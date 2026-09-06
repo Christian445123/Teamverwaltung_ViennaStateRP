@@ -56,6 +56,20 @@ class Env
         return 'ENC:' . base64_encode($iv . $ciphertext);
     }
 
+    /**
+     * Entschlüsselt einen Wert mit "ENC:"-Präfix mit demselben Key wie die .env selbst (Key-Datei
+     * oder APP_SECRET_KEY) — für in der Datenbank gespeicherte Werte (siehe Settings::set()), die
+     * denselben Verschlüsselungsmechanismus wiederverwenden, statt einen zweiten zu erfinden.
+     * Werte ohne "ENC:"-Präfix (Klartext) werden unverändert zurückgegeben.
+     */
+    public static function decryptIfNeeded(string $value): string
+    {
+        if (!str_starts_with($value, 'ENC:')) return $value;
+        $secretKey = self::resolveSecretKey(self::parseFile() ?? []);
+        if ($secretKey === null) return $value;
+        return self::decrypt($value, $secretKey);
+    }
+
     private static function parseFile(): ?array
     {
         $envFile = __DIR__ . '/../.env';

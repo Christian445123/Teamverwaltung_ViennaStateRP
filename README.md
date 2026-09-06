@@ -126,9 +126,17 @@ reine Defense-in-Depth, kein Ersatz für die beiden Punkte oben.
 
 ## Discord-Integration einrichten
 
-Alle Werte werden in der `.env` eingetragen (siehe `.env.example`), nicht über die
-Weboberfläche — Status und Anleitung dazu auch direkt in der App unter
-**Discord & Einstellungen**.
+Kern-Zugangsdaten (Client ID/Secret, Bot-Token, Public Key, Guild ID) werden in der `.env`
+eingetragen (siehe `.env.example`) — Status und Anleitung dazu auch direkt in der App unter
+**Discord & Einstellungen**. Die vier Webhook-URLs (Besprechungs-Ankündigung, Aktivitäts-Log,
+Bewerbungs-Benachrichtigung, Development-/Fehler-Log) sowie die Ankündigungs-Channel-ID lassen
+sich **zusätzlich direkt im Panel** pflegen (Karte "Webhooks & Kanäle" unter *Discord &
+Einstellungen*, Tabelle `app_settings`) — praktischer als nach jeder Änderung die `.env` auf
+jedem Server manuell zu bearbeiten. Ein dort gesetzter Wert hat Vorrang vor der `.env`; leeres
+Feld speichern setzt den Override zurück. Werte werden dabei genau wie in der `.env` optional
+mit `APP_SECRET_KEY` verschlüsselt (`Env::encrypt()`/`decryptIfNeeded()`, siehe `Settings::set()`).
+Bewusst **nicht** per UI editierbar bleiben die echten Kern-Zugangsdaten (Client-Secret,
+Bot-Token, Public Key) — die stehen ausschließlich in der `.env`.
 
 1. Im [Discord Developer Portal](https://discord.com/developers/applications) eine neue
    Anwendung erstellen.
