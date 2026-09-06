@@ -3,6 +3,7 @@ require __DIR__ . '/bootstrap.php';
 $user = Auth::requireLogin();
 $db = DB::get();
 $canManage = Perm::has($user, 'members.manage');
+$canViewAttendance = Perm::has($user, 'meetings.view_attendance');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canManage) {
     csrf_check();
@@ -63,7 +64,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canManage) {
 
 $members = $db->query("
   SELECT u.*, r.name AS rank_name, r.color AS rank_color, r.level AS rank_level,
-    GROUP_CONCAT(t.name ORDER BY t.name SEPARATOR ', ') AS team_names
+    GROUP_CONCAT(t.name ORDER BY t.name SEPARATOR ', ') AS team_names,
+    (SELECT COUNT(*) FROM meeting_attendees ma WHERE ma.user_id = u.id AND ma.attended IS NOT NULL) AS attendance_total,
+    (SELECT SUM(ma.attended) FROM meeting_attendees ma WHERE ma.user_id = u.id AND ma.attended IS NOT NULL) AS attendance_present
   FROM users u
   LEFT JOIN ranks r ON r.id = u.rank_id
   LEFT JOIN user_teams ut ON ut.user_id = u.id
@@ -95,6 +98,7 @@ require __DIR__ . '/includes/header.php';
         <th>Rang</th>
         <th>Team</th>
         <th>Discord</th>
+        <?php if ($canViewAttendance): ?><th>Anwesenheit</th><?php endif; ?>
         <?php if ($canManage): ?><th></th><?php endif; ?>
       </tr>
     </thead>
@@ -140,6 +144,16 @@ require __DIR__ . '/includes/header.php';
             <span class="text-muted">nicht verknüpft</span>
           <?php endif; ?>
         </td>
+        <?php if ($canViewAttendance): ?>
+        <td>
+          <?php if ((int) $m['attendance_total'] > 0): ?>
+            <?php $pct = round((int) $m['attendance_present'] / (int) $m['attendance_total'] * 100); ?>
+            <span title="<?= (int) $m['attendance_present'] ?> von <?= (int) $m['attendance_total'] ?> erfassten Besprechungen anwesend"><?= (int) $m['attendance_present'] ?>/<?= (int) $m['attendance_total'] ?> (<?= $pct ?>%)</span>
+          <?php else: ?>
+            <span class="text-muted">keine Daten</span>
+          <?php endif; ?>
+        </td>
+        <?php endif; ?>
         <?php if ($canManage): ?>
         <td>
           <div class="btn-row">

@@ -236,6 +236,10 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
   Ankündigung.
 - **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
   1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
+- **Anwesenheits-Übersicht in der Mitgliederliste** (Berechtigung `meetings.view_attendance`):
+  eigene Spalte zeigt pro Mitglied auf einen Blick, bei wie vielen erfassten Besprechungen es
+  anwesend war (X/Y, in %) — die gleiche Statistik, die bisher nur einzeln im Mitglied-Formular
+  bzw. im eigenen Profil einsehbar war, jetzt für das ganze Team auf einer Seite vergleichbar.
 - **Schnelle Beförderung/Degradierung direkt in der Mitgliederliste** (`members.php`,
   Berechtigung `members.manage`): Rang-Dropdown pro Zeile, ändert bei Auswahl sofort den Rang
   (kein Umweg über das volle Mitglied-Formular nötig). Setzt automatisch die passende
