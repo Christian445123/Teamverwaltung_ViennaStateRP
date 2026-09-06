@@ -52,6 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        audit_log('application.submitted', "{$name} → {$posting['title']}", $name);
         redirect(url('careers_apply.php?job=' . urlencode($slug) . '&submitted=1'));
     }
 }

@@ -773,6 +773,33 @@ class DiscordClient
         return array_values(array_unique($ids));
     }
 
+    /**
+     * Postet eine protokollierte Aktion (siehe audit_log() in helpers.php) als Embed in den
+     * optionalen Aktivitäts-Log-Kanal (DISCORD_LOG_WEBHOOK_URL). Rein informativ und best-effort:
+     * ohne konfigurierten Webhook passiert nichts, ein fehlgeschlagener Request blockiert oder
+     * verändert nie die eigentliche Aktion (audit_log() schreibt vorher schon in die DB).
+     */
+    public static function postLogEvent(string $action, string $details, ?string $actorName): void
+    {
+        $webhook = Settings::get('discord_log_webhook_url');
+        if (!$webhook) return;
+
+        $embed = [
+            'title' => $action,
+            'color' => 0x5865F2,
+            'footer' => ['text' => $actorName ? "von {$actorName}" : 'System'],
+            'timestamp' => date('c'),
+        ];
+        if ($details !== '') {
+            $embed['description'] = mb_substr($details, 0, 2000);
+        }
+
+        // Kurzes Timeout: dieser Aufruf hängt jetzt an praktisch jeder schreibenden Aktion im
+        // Dashboard (via audit_log()) — ein langsamer/nicht erreichbarer Webhook darf normale
+        // Bedienung nie spürbar verzögern, das Log ist rein informativ.
+        self::request('POST', rtrim($webhook, '/') . '?wait=false', json_encode(['embeds' => [$embed]]), ['Content-Type: application/json'], 4);
+    }
+
     private static function rsvpActionRow(int $meetingId): array
     {
         return [
@@ -785,13 +812,13 @@ class DiscordClient
         ];
     }
 
-    private static function request(string $method, string $url, $body = null, array $headers = []): array
+    private static function request(string $method, string $url, $body = null, array $headers = [], int $timeout = 15): array
     {
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+        curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
         if ($body !== null) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
         }

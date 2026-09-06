@@ -237,6 +237,24 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
 - **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
   1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
 
+## Aktivitäts-Log in Discord
+
+Optional lässt sich jede protokollierte Aktion zusätzlich als Embed in einen Discord-Kanal
+posten (z. B. „📳║teambot-log"): `DISCORD_LOG_WEBHOOK_URL` in der `.env` setzen (Kanal-
+Einstellungen → Integrationen → Webhooks → Neuer Webhook). Ohne diese Variable läuft alles
+wie bisher, nur ohne Discord-Benachrichtigung — reines Opt-in.
+
+`audit_log()` (`src/helpers.php`) ist die einzige Stelle, die sowohl in die interne
+`audit_log`-Tabelle schreibt als auch (best-effort, 4s Timeout, blockiert nie die eigentliche
+Aktion) an `DiscordClient::postLogEvent()` weiterreicht. Bereits verdrahtet für: Mitglieder-
+anlage/-bearbeitung/-deaktivierung, Team- und Rang-Verwaltung (inkl. Berechtigungsänderungen),
+Besprechungen (anlegen/bearbeiten/absagen/löschen), Zu-/Absagen (Portal, Discord-Button,
+Stellvertretung), Anwesenheitserfassung, Discord-Sync-Aktionen, Bewerbungs-Workflow (neue
+Bewerbung, Gesprächseinladung, Terminbuchung, Annahme/Ablehnung), Stellenausschreibungen
+(anlegen/bearbeiten/öffnen/schließen/löschen), Deployments sowie Logins (Benutzername/Passwort,
+Discord, Discord-Verknüpfung, Ersteinrichtung). Weitere Aktionen lassen sich genau gleich per
+`audit_log('bereich.aktion', 'Beschreibung')` ergänzen.
+
 ## Deployment per Klick (git pull)
 
 Unter **Discord & Einstellungen** gibt es — nach dem Vorbild des

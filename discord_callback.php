@@ -38,6 +38,7 @@ if ($linkMode) {
 
     $stmt = $db->prepare("UPDATE users SET discord_id = ?, discord_username = ?, discord_avatar = ?, updated_at = NOW() WHERE id = ?");
     $stmt->execute([$discordUser['id'], $discordUser['username'], $discordUser['avatar'], $me['id']]);
+    audit_log('auth.discord_link', $discordUser['username'] ?? $discordUser['id']);
 
     $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
     $stmt->execute([$me['id']]);
@@ -56,6 +57,7 @@ $stmt = $db->prepare("SELECT * FROM users WHERE discord_id = ? AND status = 'act
 $stmt->execute([$discordUser['id']]);
 $user = $stmt->fetch();
 
+$isNewAccount = !$user;
 if (!$user) {
     $lowestRank = $db->query("SELECT id FROM ranks ORDER BY level ASC LIMIT 1")->fetchColumn();
     $isFirstUser = !Auth::hasAnyUsers();
@@ -89,4 +91,5 @@ if (!empty($pull['rank']['changed']) || !empty($pull['highTeam']['changed'])) {
 }
 
 Auth::login($user);
+audit_log($isNewAccount ? 'auth.discord_signup' : 'auth.login', 'Login per Discord');
 redirect(url('index.php'));

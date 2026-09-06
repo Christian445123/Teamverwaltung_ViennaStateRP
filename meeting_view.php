@@ -48,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (in_array($attended, ['1', '0', ''], true)) {
             $stmt = $db->prepare("UPDATE meeting_attendees SET attended = ? WHERE meeting_id = ? AND user_id = ?");
             $stmt->execute([$attended === '' ? null : (int) $attended, $id, $attendeeId]);
+            $label = $attended === '1' ? 'anwesend' : ($attended === '0' ? 'abwesend' : 'zurückgesetzt');
+            audit_log('meeting.mark_attendance', "Besprechung #{$id}, Mitglied #{$attendeeId} → {$label}");
             flash('success', 'Anwesenheit aktualisiert.');
         }
         redirect(url('meeting_view.php?id=' . $id));
@@ -62,6 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("INSERT INTO meeting_attendees (meeting_id, user_id, status, responded_at) VALUES (?, ?, ?, NOW())
             ON DUPLICATE KEY UPDATE status = VALUES(status), responded_at = VALUES(responded_at)");
         $stmt->execute([$id, $user['id'], $status]);
+        audit_log('meeting.rsvp', "Besprechung #{$id} → {$status}");
         flash('success', 'Rückmeldung gespeichert.');
     }
     redirect(url('meeting_view.php?id=' . $id));

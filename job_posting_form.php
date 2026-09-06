@@ -94,11 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db->prepare("UPDATE job_postings SET title=?, description=?, requirements=?, image_url=?, team_id=?, status=? WHERE id=?")
             ->execute([$title, $description ?: null, $requirements ?: null, $imageUrl ?: null, $teamId, $status, $posting['id']]);
         $postingId = $posting['id'];
+        audit_log('job_posting.update', $title);
     } else {
         $slug = unique_slug($db, $title, null);
         $db->prepare("INSERT INTO job_postings (title, slug, description, requirements, image_url, team_id, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'open', ?)")
             ->execute([$title, $slug, $description ?: null, $requirements ?: null, $imageUrl ?: null, $teamId, $user['id']]);
         $postingId = $db->lastInsertId();
+        audit_log('job_posting.create', $title);
     }
 
     // Zusatzfragen per Label abgleichen: bestehende (Text unverändert) behalten ihre ID (damit

@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             DiscordClient::deleteScheduledEvent($meeting['discord_event_id']);
         }
         $db->prepare("DELETE FROM meetings WHERE id = ?")->execute([$meeting['id']]);
+        audit_log('meeting.delete', $meeting['title']);
         flash('success', 'Besprechung gelöscht.');
         redirect(url('meetings.php'));
     }
@@ -41,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($meeting['discord_message_id']) {
             DiscordClient::updateMeetingAnnouncement($meeting);
         }
+        audit_log('meeting.cancel', $meeting['title']);
         flash('success', 'Besprechung abgesagt.');
         redirect(url('meeting_view.php?id=' . $meeting['id']));
     }
@@ -93,6 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $data['status'] = $meeting['status'];
             DiscordClient::updateScheduledEvent($meeting['discord_event_id'], $data);
         }
+        audit_log('meeting.update', $title);
         flash('success', 'Besprechung aktualisiert.');
     } else {
         $stmt = $db->prepare("INSERT INTO meetings (title, description, location, start_time, end_time, team_id, created_by, status)
@@ -122,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->prepare("UPDATE meetings SET discord_event_id=?, discord_message_id=?, discord_channel_id=? WHERE id=?")
                ->execute([$discordEventId, $discordMessageId, $discordChannelId, $meetingId]);
         }
+        audit_log('meeting.create', $title);
         flash('success', 'Besprechung erstellt.');
     }
 

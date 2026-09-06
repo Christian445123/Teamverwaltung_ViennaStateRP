@@ -9,12 +9,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $id = (int) ($_POST['id'] ?? 0);
 
     if ($action === 'toggle_status' && $id) {
-        $stmt = $db->prepare("SELECT status FROM job_postings WHERE id = ?");
+        $stmt = $db->prepare("SELECT title, status FROM job_postings WHERE id = ?");
         $stmt->execute([$id]);
-        $current = $stmt->fetchColumn();
-        if ($current !== false) {
-            $new = $current === 'open' ? 'closed' : 'open';
+        $posting = $stmt->fetch();
+        if ($posting) {
+            $new = $posting['status'] === 'open' ? 'closed' : 'open';
             $db->prepare("UPDATE job_postings SET status = ? WHERE id = ?")->execute([$new, $id]);
+            audit_log('job_posting.' . $new, $posting['title']);
             flash('success', $new === 'open' ? 'Ausschreibung wieder geöffnet.' : 'Ausschreibung geschlossen.');
         }
     } elseif ($action === 'delete' && $id) {
@@ -23,7 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ((int) $stmt->fetch()['c'] > 0) {
             flash('error', 'Ausschreibung hat bereits Bewerbungen und kann nicht gelöscht werden — stattdessen schließen.');
         } else {
+            $stmt = $db->prepare("SELECT title FROM job_postings WHERE id = ?");
+            $stmt->execute([$id]);
+            $title = $stmt->fetchColumn() ?: "#{$id}";
             $db->prepare("DELETE FROM job_postings WHERE id = ?")->execute([$id]);
+            audit_log('job_posting.delete', $title);
             flash('success', 'Ausschreibung gelöscht.');
         }
     }

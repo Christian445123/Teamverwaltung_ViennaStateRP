@@ -18,15 +18,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $canManage) {
         } elseif ($id) {
             $stmt = $db->prepare("UPDATE teams SET name=?, description=?, discord_role_id=? WHERE id=?");
             $stmt->execute([$name, $description ?: null, $discordRoleId ?: null, $id]);
+            audit_log('team.update', $name);
             flash('success', 'Team aktualisiert.');
         } else {
             $stmt = $db->prepare("INSERT INTO teams (name, description, discord_role_id) VALUES (?, ?, ?)");
             $stmt->execute([$name, $description ?: null, $discordRoleId ?: null]);
+            audit_log('team.create', $name);
             flash('success', 'Team erstellt.');
         }
     } elseif ($action === 'delete' && $id) {
+        $stmt = $db->prepare("SELECT name FROM teams WHERE id = ?");
+        $stmt->execute([$id]);
+        $teamName = $stmt->fetchColumn() ?: "#{$id}";
         // user_teams-Zuordnungen werden per ON DELETE CASCADE automatisch mitentfernt.
         $db->prepare("DELETE FROM teams WHERE id = ?")->execute([$id]);
+        audit_log('team.delete', $teamName);
         flash('success', 'Team gelöscht.');
     }
     redirect(url('teams.php'));

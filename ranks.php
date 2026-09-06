@@ -21,15 +21,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($id) {
             $stmt = $db->prepare("UPDATE ranks SET name=?, level=?, color=?, permissions=?, discord_role_id=? WHERE id=?");
             $stmt->execute([$name, $level, $color, json_encode($perms), $discordRoleId ?: null, $id]);
+            audit_log('rank.update', "{$name} (Stufe {$level}) → " . ($perms ? implode(', ', $perms) : 'keine Berechtigungen'));
             flash('success', 'Rang aktualisiert.');
         } else {
             $stmt = $db->prepare("INSERT INTO ranks (name, level, color, permissions, discord_role_id) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$name, $level, $color, json_encode($perms), $discordRoleId ?: null]);
+            audit_log('rank.create', "{$name} (Stufe {$level})");
             flash('success', 'Rang erstellt.');
         }
     } elseif ($action === 'delete' && $id) {
+        $stmt = $db->prepare("SELECT name FROM ranks WHERE id = ?");
+        $stmt->execute([$id]);
+        $rankName = $stmt->fetchColumn() ?: "#{$id}";
         $db->prepare("UPDATE users SET rank_id = NULL WHERE rank_id = ?")->execute([$id]);
         $db->prepare("DELETE FROM ranks WHERE id = ?")->execute([$id]);
+        audit_log('rank.delete', $rankName);
         flash('success', 'Rang gelöscht.');
     }
     redirect(url('ranks.php'));

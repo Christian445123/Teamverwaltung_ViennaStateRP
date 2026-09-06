@@ -193,6 +193,7 @@ try {
     $stmt = $db->prepare("INSERT INTO meeting_attendees (meeting_id, user_id, status, responded_at) VALUES (?, ?, ?, NOW())
         ON DUPLICATE KEY UPDATE status = VALUES(status), responded_at = VALUES(responded_at)");
     $stmt->execute([$meetingId, $user['id'], $status]);
+    audit_log('meeting.rsvp_discord', "Besprechung #{$meetingId} → {$status}", $user['display_name']);
 
     $labels = [
         'accepted' => '✅ Du hast zugesagt!',

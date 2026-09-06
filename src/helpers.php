@@ -63,11 +63,18 @@ function input_datetime_value(?string $value): string
     return date('Y-m-d\TH:i', $ts);
 }
 
-function audit_log(string $action, string $details = ''): void
+/**
+ * Schreibt eine Aktion ins interne Änderungsprotokoll und postet sie zusätzlich (best-effort,
+ * siehe DiscordClient::postLogEvent()) in den optionalen Discord-Aktivitäts-Log-Kanal.
+ * $actorNameOverride ist für Fälle ohne Web-Session gedacht (z. B. RSVP per Discord-Button),
+ * wo der Handelnde bekannt ist, aber current_user() mangels Login null liefert.
+ */
+function audit_log(string $action, string $details = '', ?string $actorNameOverride = null): void
 {
     $user = current_user();
     $stmt = DB::get()->prepare("INSERT INTO audit_log (user_id, action, details) VALUES (?, ?, ?)");
     $stmt->execute([$user['id'] ?? null, $action, $details]);
+    DiscordClient::postLogEvent($action, $details, $actorNameOverride ?? ($user['display_name'] ?? null));
 }
 
 /**

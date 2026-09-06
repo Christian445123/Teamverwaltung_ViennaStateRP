@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = ['id' => $db->lastInsertId()];
             $fullUser = DB::get()->query("SELECT * FROM users WHERE id = " . (int) $user['id'])->fetch();
             Auth::login($fullUser);
+            audit_log('auth.setup', "Erstes Administrator-Konto erstellt: {$displayName}");
             flash('success', 'Willkommen! Dein Administrator-Konto wurde erstellt.');
             redirect(url('settings.php'));
         }
@@ -36,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user = Auth::attemptLogin($username, $password);
         if ($user) {
             Auth::login($user);
+            audit_log('auth.login', 'Login per Benutzername/Passwort');
             redirect(url('index.php'));
         }
         $error = 'Benutzername oder Passwort ist falsch.';

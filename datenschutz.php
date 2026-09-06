@@ -106,8 +106,13 @@ require __DIR__ . '/includes/header.php';
   <p>
     Teamleitung kann zu einem Mitglied ein Freitext-Notizfeld pflegen; hier sollen nur
     sachbezogene, teamrelevante Informationen hinterlegt werden. Zusätzlich protokolliert
-    ein internes Änderungsprotokoll administrative Aktionen (z. B. Ranganpassungen), um
-    Änderungen nachvollziehbar zu machen. Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.
+    ein internes Änderungsprotokoll administrative Aktionen (z. B. Ranganpassungen, Zu-/
+    Absagen, Bewerbungs-Entscheidungen, Logins) mitsamt Zeitpunkt und handelnder Person, um
+    Änderungen nachvollziehbar zu machen. Ist ein Discord-Webhook dafür konfiguriert
+    (<code>DISCORD_LOG_WEBHOOK_URL</code>), wird jeder dieser Protokolleinträge zusätzlich als
+    Nachricht in einen internen Team-Log-Kanal auf Discord gepostet, sichtbar nur für Personen
+    mit Zugriff auf diesen Kanal. Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
+    Interesse an Nachvollziehbarkeit administrativer Handlungen und Missbrauchsprävention).
   </p>
 
   <h3>g) Bewerbungsdaten (öffentliche Bewerbungsseite)</h3>

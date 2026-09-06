@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$application['id'], $slotId, $application['posting_id']]);
         if ($stmt->rowCount() > 0) {
             $db->prepare("UPDATE applications SET status = 'interview_scheduled' WHERE id = ?")->execute([$application['id']]);
+            audit_log('application.interview_booked', "{$application['applicant_name']} → {$application['posting_title']}", $application['applicant_name']);
             flash('success', 'Termin gebucht! Wir sehen uns dann.');
         } else {
             flash('error', 'Dieser Termin wurde gerade eben von jemand anderem gebucht. Bitte wähle einen anderen.');

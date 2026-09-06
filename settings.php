@@ -123,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg .= $gated
             ? " {$skipped} ohne \"Team\"-/\"High-Team\"-Rolle übersprungen."
             : ' Hinweis: weder „Team"- noch „High-Team"-Rolle ist zugeordnet, es wurden alle Server-Mitglieder importiert.';
+        audit_log('settings.sync_members', $msg);
         flash('success', $msg);
     } elseif ($action === 'reset_and_resync_members') {
         // Löscht alle Mitglieder außer dem eigenen (aktuell eingeloggten) Konto — verhindert,
@@ -137,6 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $msg .= $gated
             ? " {$skipped} ohne \"Team\"-/\"High-Team\"-Rolle übersprungen."
             : ' Hinweis: weder „Team"- noch „High-Team"-Rolle ist zugeordnet, es wurden alle Server-Mitglieder importiert.';
+        audit_log('settings.reset_and_resync_members', $msg);
         flash('success', $msg);
     } elseif ($action === 'sync_all_roles') {
         $activeUsers = $db->query("SELECT * FROM users WHERE status='active' AND discord_id IS NOT NULL")->fetchAll();
@@ -146,6 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($result['ok']) $count++;
             usleep(300000);
         }
+        audit_log('settings.sync_all_roles', "Discord-Rollen für {$count} Mitglieder synchronisiert.");
         flash('success', "Discord-Rollen für {$count} Mitglieder synchronisiert.");
     } elseif ($action === 'sync_ranks_from_discord') {
         $activeUsers = $db->query("SELECT * FROM users WHERE status='active' AND discord_id IS NOT NULL")->fetchAll();
@@ -176,6 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($permTagChanges > 0) {
             $msg .= " Zusatzrollen bei {$permTagChanges} Mitglied(ern) aktualisiert.";
         }
+        audit_log('settings.sync_ranks_from_discord', $msg);
         flash('success', $msg);
     } elseif ($action === 'save_extra_roles') {
         $stmt = $db->prepare("UPDATE discord_extra_roles SET discord_role_id = ? WHERE slug = ?");
@@ -183,6 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $roleId = trim($_POST['extra_role_' . $slug] ?? '');
             $stmt->execute([$roleId ?: null, $slug]);
         }
+        audit_log('settings.save_extra_roles', 'Team/High-Team-Rollen-Zuordnung geändert');
         flash('success', 'Zusatzrollen gespeichert.');
     } elseif ($action === 'save_perm_tags') {
         $stmt = $db->prepare("UPDATE discord_perm_tags SET discord_role_id = ? WHERE slug = ?");
@@ -190,6 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $roleId = trim($_POST['perm_tag_' . $tag['slug']] ?? '');
             $stmt->execute([$roleId ?: null, $tag['slug']]);
         }
+        audit_log('settings.save_perm_tags', 'Zusatzrollen-Zuordnung geändert');
         flash('success', 'Zusatzrollen (Berechtigungs-Kennzeichnungen) gespeichert.');
     }
     redirect(url('settings.php'));
@@ -249,6 +255,7 @@ require __DIR__ . '/includes/header.php';
   <?php status_row('Discord Server (Guild) ID', (bool) Settings::get('discord_guild_id'), 'DISCORD_GUILD_ID'); ?>
   <?php status_row('Ankündigungs-Webhook', (bool) Settings::get('discord_webhook_url'), 'DISCORD_WEBHOOK_URL'); ?>
   <?php status_row('Ankündigungs-Channel-ID', (bool) Settings::get('discord_announce_channel_id'), 'DISCORD_ANNOUNCE_CHANNEL_ID'); ?>
+  <?php status_row('Aktivitäts-Log-Webhook (z. B. teambot-log)', (bool) Settings::get('discord_log_webhook_url'), 'DISCORD_LOG_WEBHOOK_URL'); ?>
 
   <p class="field-hint" style="margin-top:14px;">Redirect-URI für das Discord Developer Portal: <code><?= e(DiscordClient::redirectUri()) ?></code><br>Interactions Endpoint URL (für Zu-/Absage-Buttons ohne Login): <code><?= e(Settings::appUrl() . '/discord_interactions.php') ?></code><br>Wichtig: Für funktionierende Zu-/Absage-Buttons müssen <strong>Bot-Token + Ankündigungs-Channel-ID</strong> gesetzt sein — ein reiner Webhook kann Button-Klicks nicht zuverlässig an <code>DISCORD_PUBLIC_KEY</code> ausliefern (ist zusätzlich ein Webhook konfiguriert, hat der Bot bei Buttons trotzdem Vorrang; ohne Bot-Kanal zeigt die Webhook-Nachricht nur den immer funktionierenden „Zum Meeting"-Link).</p>
 </div>
