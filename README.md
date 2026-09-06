@@ -236,6 +236,12 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
   Ankündigung.
 - **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
   1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
+- **Schnelle Beförderung/Degradierung direkt in der Mitgliederliste** (`members.php`,
+  Berechtigung `members.manage`): Rang-Dropdown pro Zeile, ändert bei Auswahl sofort den Rang
+  (kein Umweg über das volle Mitglied-Formular nötig). Setzt automatisch die passende
+  Discord-Rolle (aus `ranks.discord_role_id`, unter *Ränge* pro Rang festgelegt) und schreibt
+  einen eigenen Eintrag ("🎉 … befördert" / "⬇️ … degradiert") ins Aktivitäts-Log inkl.
+  Discord-Benachrichtigung.
 
 ## Bewerbungs-Benachrichtigung in Discord
 
