@@ -24,6 +24,10 @@ $pageTitle = $pageTitle ?? 'Teamverwaltung';
       <a href="<?= url('meetings.php') ?>" class="<?= ($active ?? '') === 'meetings' ? 'active' : '' ?>">Besprechungen</a>
       <a href="<?= url('members.php') ?>" class="<?= ($active ?? '') === 'members' ? 'active' : '' ?>">Mitglieder</a>
       <a href="<?= url('teams.php') ?>" class="<?= ($active ?? '') === 'teams' ? 'active' : '' ?>">Teams</a>
+      <?php if (Perm::has($user, 'applications.manage')): ?>
+      <a href="<?= url('job_postings.php') ?>" class="<?= ($active ?? '') === 'job_postings' ? 'active' : '' ?>">Stellenausschreibungen</a>
+      <a href="<?= url('applications.php') ?>" class="<?= ($active ?? '') === 'applications' ? 'active' : '' ?>">Bewerbungen</a>
+      <?php endif; ?>
       <?php if (Perm::has($user, 'ranks.manage')): ?>
       <a href="<?= url('ranks.php') ?>" class="<?= ($active ?? '') === 'ranks' ? 'active' : '' ?>">Ränge</a>
       <?php endif; ?>

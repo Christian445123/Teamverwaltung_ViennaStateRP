@@ -5,7 +5,7 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 class DB
 {
     // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
-    private const SCHEMA_VERSION = 3;
+    private const SCHEMA_VERSION = 4;
 
     private static ?PDO $instance = null;
 
@@ -240,6 +240,86 @@ class DB
             $db->exec("ALTER TABLE `meeting_attendees` ADD COLUMN `attended` TINYINT(1) NULL");
         }
 
+        // Öffentliche Bewerbungsseite: Stellenausschreibungen, Bewerbungen samt individueller
+        // Zusatzfragen, und Bewerbungsgespräch-Terminslots (Self-Service-Buchung ohne Login).
+        $db->exec("CREATE TABLE IF NOT EXISTS job_postings (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            title VARCHAR(200) NOT NULL,
+            slug VARCHAR(220) NOT NULL,
+            description TEXT NULL,
+            team_id INT UNSIGNED NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'open',
+            created_by INT UNSIGNED NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_slug (slug),
+            KEY idx_jp_status (status),
+            CONSTRAINT fk_jp_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
+            CONSTRAINT fk_jp_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        $db->exec("CREATE TABLE IF NOT EXISTS job_posting_questions (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            posting_id INT UNSIGNED NOT NULL,
+            label VARCHAR(200) NOT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            PRIMARY KEY (id),
+            KEY idx_jpq_posting (posting_id),
+            CONSTRAINT fk_jpq_posting FOREIGN KEY (posting_id) REFERENCES job_postings(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        $db->exec("CREATE TABLE IF NOT EXISTS applications (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            posting_id INT UNSIGNED NOT NULL,
+            applicant_name VARCHAR(150) NOT NULL,
+            applicant_age INT UNSIGNED NULL,
+            discord_tag VARCHAR(100) NULL,
+            motivation TEXT NULL,
+            availability TEXT NULL,
+            status VARCHAR(30) NOT NULL DEFAULT 'pending',
+            booking_token VARCHAR(64) NOT NULL,
+            notes TEXT NULL,
+            created_user_id INT UNSIGNED NULL,
+            reviewed_by INT UNSIGNED NULL,
+            reviewed_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_booking_token (booking_token),
+            KEY idx_app_posting (posting_id),
+            KEY idx_app_status (status),
+            CONSTRAINT fk_app_posting FOREIGN KEY (posting_id) REFERENCES job_postings(id) ON DELETE CASCADE,
+            CONSTRAINT fk_app_created_user FOREIGN KEY (created_user_id) REFERENCES users(id) ON DELETE SET NULL,
+            CONSTRAINT fk_app_reviewer FOREIGN KEY (reviewed_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        $db->exec("CREATE TABLE IF NOT EXISTS application_answers (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            application_id INT UNSIGNED NOT NULL,
+            question_id INT UNSIGNED NOT NULL,
+            answer TEXT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_app_question (application_id, question_id),
+            CONSTRAINT fk_aa_application FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE,
+            CONSTRAINT fk_aa_question FOREIGN KEY (question_id) REFERENCES job_posting_questions(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // Freie Zeitslots pro Ausschreibung, aus denen sich Bewerber:innen nach einer Einladung
+        // per Buchungslink selbst einen Termin aussuchen (application_id = NULL → noch offen).
+        $db->exec("CREATE TABLE IF NOT EXISTS interview_slots (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            posting_id INT UNSIGNED NOT NULL,
+            start_time DATETIME NOT NULL,
+            end_time DATETIME NULL,
+            application_id INT UNSIGNED NULL,
+            created_by INT UNSIGNED NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_is_posting_start (posting_id, start_time),
+            CONSTRAINT fk_is_posting FOREIGN KEY (posting_id) REFERENCES job_postings(id) ON DELETE CASCADE,
+            CONSTRAINT fk_is_application FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE SET NULL,
+            CONSTRAINT fk_is_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
         $db->exec("CREATE TABLE IF NOT EXISTS audit_log (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,
             user_id INT UNSIGNED NULL,
@@ -297,6 +377,13 @@ class DB
             }
             if (in_array('meetings.manage', $perms, true) && !in_array('meetings.respond_for_others', $perms, true)) {
                 $perms[] = 'meetings.respond_for_others';
+                $changed = true;
+            }
+            // Bewerbungsverwaltung ist neu und knüpft an die gleiche Vertrauensstufe wie die
+            // Mitgliederverwaltung an (wer Mitglieder anlegen darf, darf auch über Bewerbungen
+            // entscheiden, aus denen ja neue Mitglieder entstehen).
+            if (in_array('members.manage', $perms, true) && !in_array('applications.manage', $perms, true)) {
+                $perms[] = 'applications.manage';
                 $changed = true;
             }
             if ($changed) {

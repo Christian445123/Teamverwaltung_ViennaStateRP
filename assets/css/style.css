@@ -170,6 +170,13 @@ textarea { resize: vertical; min-height: 80px; }
 .badge.rsvp-declined { background: var(--danger); }
 .badge.rsvp-maybe { background: var(--warning); color: #2b2d31; }
 .badge.rsvp-pending { background: #4a4d55; }
+.badge.status-open { background: var(--success); }
+.badge.status-closed { background: #4a4d55; }
+.badge.status-pending { background: #4a4d55; }
+.badge.status-interview_invited { background: var(--warning); color: #2b2d31; }
+.badge.status-interview_scheduled { background: var(--accent); }
+.badge.status-accepted { background: var(--success); }
+.badge.status-rejected { background: var(--danger); }
 
 .flash { padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px; font-size: 14px; }
 .flash-success { background: rgba(35,165,90,0.15); border: 1px solid var(--success); color: #7ee2a8; }
@@ -213,6 +220,23 @@ textarea { resize: vertical; min-height: 80px; }
 }
 .legal-nav a:hover, .legal-nav a.active { color: var(--text); border-color: var(--accent); }
 @media (max-width: 820px) { .legal-card { padding: 24px 20px; } }
+
+.public-page {
+  width: 860px; max-width: 100%; margin: 40px auto; align-self: flex-start;
+}
+.public-page .card p:last-child { margin-bottom: 0; }
+.slot-list { display: flex; flex-direction: column; gap: 8px; }
+.slot-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 12px 16px;
+}
+.copy-box {
+  display: flex; align-items: center; gap: 8px; background: var(--bg-elevated);
+  border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px;
+  font-size: 13px; word-break: break-all;
+}
+.copy-box code { flex: 1; color: var(--text); }
 
 .text-muted { color: var(--text-muted); }
 .mt-0 { margin-top: 0; }

@@ -23,8 +23,18 @@
  */
 
 header('Content-Type: application/json');
+// Gegen Response-Buffering durch nginx/PHP absichern — die "denkt nach…"-Antwort muss
+// innerhalb von 3 Sekunden beim Client (Discord) ankommen, sonst zeigt Discord "hat nicht
+// rechtzeitig reagiert", selbst wenn PHP intern längst geantwortet hat.
+ini_set('zlib.output_compression', '0');
+header('X-Accel-Buffering: no'); // nginx: Antwort nicht puffern, sofort durchreichen
 
 define('APP_BOOTSTRAPPED', true);
+$__rsvpStart = microtime(true);
+function log_rsvp_timing(string $label, float $start): void
+{
+    error_log(sprintf('[discord_interactions] %s nach %.3fs', $label, microtime(true) - $start));
+}
 require_once __DIR__ . '/src/Env.php';
 Env::load();
 
@@ -73,13 +83,17 @@ if (($payload['type'] ?? null) !== 3) {
 
 // Sofort quittieren ("Bot denkt nach …", ephemeral) und die Verbindung beenden — alles
 // Weitere unten passiert danach, ohne Zeitdruck.
-echo json_encode(['type' => 5, 'data' => ['flags' => 64]]);
+log_rsvp_timing('Signatur geprüft', $__rsvpStart);
+$ackBody = json_encode(['type' => 5, 'data' => ['flags' => 64]]);
+header('Content-Length: ' . strlen($ackBody));
+echo $ackBody;
 if (function_exists('fastcgi_finish_request')) {
     fastcgi_finish_request();
 } else {
-    if (ob_get_level() > 0) { ob_end_flush(); }
+    while (ob_get_level() > 0) { ob_end_flush(); }
     flush();
 }
+log_rsvp_timing('Ack gesendet (fastcgi_finish_request=' . (function_exists('fastcgi_finish_request') ? 'ja' : 'NEIN') . ')', $__rsvpStart);
 
 /** Schickt das endgültige Ergebnis als Follow-up (ersetzt das "denkt nach …"). */
 function send_followup(string $applicationId, string $interactionToken, string $content): void
@@ -186,8 +200,10 @@ try {
         'declined' => '❌ Du hast abgesagt.',
     ];
     send_followup($applicationId, $interactionToken, $labels[$status]);
+    log_rsvp_timing('Follow-up gesendet (Erfolg)', $__rsvpStart);
 } catch (\Throwable $e) {
     error_log('[discord_interactions] ' . $e->getMessage());
+    log_rsvp_timing('Follow-up gesendet (Fehler: ' . $e->getMessage() . ')', $__rsvpStart);
     if (!empty($applicationId) && !empty($interactionToken)) {
         send_followup($applicationId, $interactionToken, 'Es ist ein Fehler aufgetreten. Bitte später erneut versuchen oder im Dashboard antworten.');
     }

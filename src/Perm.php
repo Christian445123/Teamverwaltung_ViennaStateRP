@@ -36,6 +36,7 @@ class Perm
             'teams.manage' => 'Teams verwalten',
             'ranks.manage' => 'Ränge & Berechtigungen verwalten',
             'discord.manage' => 'Discord-Einstellungen verwalten',
+            'applications.manage' => 'Stellenausschreibungen & Bewerbungen verwalten',
         ];
     }
 }

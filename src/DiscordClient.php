@@ -112,6 +112,33 @@ class DiscordClient
         return $all;
     }
 
+    /**
+     * Best-effort-Zuordnung eines frei eingegebenen Discord-Tags (aus einer Bewerbung) zu einem
+     * echten Server-Mitglied, damit ein bei Annahme automatisch angelegtes Mitgliedskonto gleich
+     * die richtige discord_id bekommt — sonst würde ein späterer Discord-Login der Person ein
+     * zweites, unverknüpftes Konto anlegen (Login matched ausschließlich per discord_id).
+     * Akzeptiert sowohl neue Nutzernamen als auch alte "Name#1234"-Tags. Liefert nur bei genau
+     * einem eindeutigen Treffer ein Ergebnis, sonst null (lieber unverknüpft als falsch verknüpft).
+     */
+    public static function findGuildMemberByTag(string $tag): ?array
+    {
+        $namePart = strtolower(trim(ltrim(trim($tag), '@')));
+        $namePart = explode('#', $namePart)[0];
+        if ($namePart === '') return null;
+
+        $matches = [];
+        foreach (self::fetchGuildMembers() as $m) {
+            $u = $m['user'] ?? null;
+            if (!$u) continue;
+            $username = strtolower($u['username'] ?? '');
+            $globalName = strtolower($u['global_name'] ?? '');
+            if ($username === $namePart || $globalName === $namePart) {
+                $matches[] = $u;
+            }
+        }
+        return count($matches) === 1 ? $matches[0] : null;
+    }
+
     /** Fetch all roles of the configured guild: [id => ['name'=>..,'color'=>..]] */
     public static function fetchGuildRoles(): array
     {
