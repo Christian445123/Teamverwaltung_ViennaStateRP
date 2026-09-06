@@ -73,6 +73,22 @@ function run_shell_command(string $cmd): array
 }
 
 /**
+ * Führt einen "pm2 ..."-Befehl mit explizit gesetztem HOME aus. PM2 speichert seinen
+ * Daemon-Zustand (welche Prozesse laufen) unter $HOME/.pm2 — der PHP-FPM-Prozess hat aber
+ * typischerweise ein anderes (oder gar kein) $HOME als die interaktive SSH-Session, in der
+ * "pm2 start" ursprünglich lief, und erreicht dadurch einen anderen/leeren Daemon
+ * ("[PM2][ERROR] Process or Namespace ... not found", obwohl der Bot tatsächlich läuft).
+ * CloudPanel legt Sites immer unter /home/<site-user>/htdocs/<domain>/ ab — zwei Ebenen über
+ * diesem Projektverzeichnis liegt also zuverlässig das Home-Verzeichnis des richtigen Nutzers,
+ * ganz ohne den Nutzernamen hart zu codieren.
+ */
+function run_pm2_command(string $args): array
+{
+    $home = dirname(__DIR__, 2);
+    return run_shell_command('HOME=' . escapeshellarg($home) . ' pm2 ' . $args);
+}
+
+/**
  * Git-Deploy nach dem Vorbild von Discordbot_Follower/deploy.sh bzw. dessen Webpanel-Button
  * "Deployen (git pull)": fast-forward-only, damit lokale Server-Änderungen nie stillschweigend
  * überschrieben werden — schlägt in dem Fall sauber fehl statt zu resetten. Ein Neustart eines
@@ -112,7 +128,7 @@ function deploy_from_git(): array
     // eigentlichen Deploy-Erfolg nicht verfälschen.
     $changedFiles = run_shell_command('git diff --name-only ' . escapeshellarg($before) . ' ' . escapeshellarg($after))['output'];
     if (str_contains($changedFiles, 'rsvp-bot/')) {
-        $restart = run_shell_command('pm2 restart teamverwaltung-rsvp-bot');
+        $restart = run_pm2_command('restart teamverwaltung-rsvp-bot');
         if ($restart['ok']) {
             $message .= ' RSVP-Bot wurde neu gestartet.';
             audit_log('settings.rsvp_bot_restart', 'RSVP-Bot nach Deploy erfolgreich neu gestartet (' . $before . ' → ' . $after . ').');
@@ -157,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'restart_bot') {
-        $restart = run_shell_command('pm2 restart teamverwaltung-rsvp-bot');
+        $restart = run_pm2_command('restart teamverwaltung-rsvp-bot');
         if ($restart['ok']) {
             flash('success', 'RSVP-Bot wurde neu gestartet.');
             audit_log('settings.rsvp_bot_restart', 'RSVP-Bot manuell neu gestartet (Button).');
