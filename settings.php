@@ -156,6 +156,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(url('settings.php'));
     }
 
+    if ($action === 'restart_bot') {
+        $restart = run_shell_command('pm2 restart teamverwaltung-rsvp-bot');
+        if ($restart['ok']) {
+            flash('success', 'RSVP-Bot wurde neu gestartet.');
+            audit_log('settings.rsvp_bot_restart', 'RSVP-Bot manuell neu gestartet (Button).');
+        } else {
+            flash('error', '„pm2 restart teamverwaltung-rsvp-bot" ist fehlgeschlagen: ' . trim($restart['output']));
+            audit_log('settings.rsvp_bot_restart_failed', 'Manueller RSVP-Bot-Neustart fehlgeschlagen: ' . trim($restart['output']));
+        }
+        redirect(url('settings.php'));
+    }
+
     if ($action === 'sync_members') {
         [$created, $matched, $skipped, $gated] = import_eligible_discord_members($db);
         $msg = "Sync abgeschlossen: {$created} neue, {$matched} aktualisierte Mitglieder.";
@@ -281,8 +293,14 @@ require __DIR__ . '/includes/header.php';
       <input type="hidden" name="action" value="deploy">
       <button class="btn" type="submit">🚀 Jetzt deployen (git pull)</button>
     </form>
+    <form method="post">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="restart_bot">
+      <button class="btn secondary" type="submit">🔁 RSVP-Bot neustarten</button>
+    </form>
     <button class="btn secondary" type="button" onclick="location.reload()">🔄 Seite neu laden</button>
   </div>
+  <p class="field-hint" style="margin-top:10px;">„RSVP-Bot neustarten" führt <code>pm2 restart teamverwaltung-rsvp-bot</code> aus — nützlich, falls der automatische Neustart nach einem Deploy fehlschlägt (siehe <code>rsvp-bot/README.md</code>).</p>
 </div>
 
 <div class="card settings-section">
