@@ -41,6 +41,13 @@ function log_rsvp_timing(string $label, float $start): void
 }
 require_once __DIR__ . '/src/Env.php';
 Env::load();
+// Früh geladen (nicht erst nach dem Ack) — nur .env, keine DB nötig — damit auch die Fehlerfälle
+// unten (401/400, bisher komplett stumm) eine Diagnose ins Development-Log posten können.
+// Temporär zur Fehlersuche bei "hat nicht rechtzeitig reagiert": bisher unklar, ob der Request
+// den Server nie erreicht oder hier an der Signaturprüfung scheitert — beides sah bisher gleich
+// aus (gar kein Log-Eintrag).
+require_once __DIR__ . '/src/Settings.php';
+require_once __DIR__ . '/src/DiscordClient.php';
 
 $publicKeyHex = Env::get('DISCORD_PUBLIC_KEY');
 $signature = $_SERVER['HTTP_X_SIGNATURE_ED25519'] ?? '';
@@ -48,6 +55,14 @@ $timestamp = $_SERVER['HTTP_X_SIGNATURE_TIMESTAMP'] ?? '';
 $rawBody = file_get_contents('php://input');
 
 if (!$publicKeyHex || !$signature || !$timestamp || !function_exists('sodium_crypto_sign_verify_detached')) {
+    DiscordClient::postDevLog('discord_interactions: 401 (fehlende Voraussetzungen)', sprintf(
+        "public_key gesetzt: %s\nsignature-header vorhanden: %s\ntimestamp-header vorhanden: %s\nsodium verfügbar: %s\nnach %.3fs",
+        $publicKeyHex ? 'ja' : 'NEIN',
+        $signature ? 'ja' : 'NEIN',
+        $timestamp ? 'ja' : 'NEIN',
+        function_exists('sodium_crypto_sign_verify_detached') ? 'ja' : 'NEIN',
+        microtime(true) - $__rsvpStart
+    ));
     http_response_code(401);
     exit;
 }
@@ -63,12 +78,17 @@ try {
 }
 
 if (!$valid) {
+    DiscordClient::postDevLog('discord_interactions: 401 (ungültige Signatur)', sprintf(
+        "body-länge: %d Bytes\nnach %.3fs — Request kam an, aber Ed25519-Prüfung ist fehlgeschlagen (z. B. veralteter DISCORD_PUBLIC_KEY oder ein Proxy verändert den Request-Body).",
+        strlen($rawBody), microtime(true) - $__rsvpStart
+    ));
     http_response_code(401);
     exit;
 }
 
 $payload = json_decode($rawBody, true);
 if (!is_array($payload)) {
+    DiscordClient::postDevLog('discord_interactions: 400 (ungültiges JSON)', 'nach ' . round(microtime(true) - $__rsvpStart, 3) . 's');
     http_response_code(400);
     exit;
 }
@@ -81,6 +101,7 @@ if (($payload['type'] ?? null) === 1) {
 
 // Alles außer MESSAGE_COMPONENT (Button-Klick) kennen wir nicht.
 if (($payload['type'] ?? null) !== 3) {
+    DiscordClient::postDevLog('discord_interactions: 400 (unbekannter type)', 'type=' . var_export($payload['type'] ?? null, true) . ', nach ' . round(microtime(true) - $__rsvpStart, 3) . 's');
     http_response_code(400);
     exit;
 }
@@ -102,10 +123,7 @@ log_rsvp_timing('Ack gesendet (fastcgi_finish_request=' . (function_exists('fast
 // Ab hier ist die Antwort an Discord bereits raus (Verbindung per fastcgi_finish_request aktiv
 // beendet bzw. geflusht) — ein weiterer HTTP-Call kostet ab jetzt nichts mehr fürs 3-Sekunden-
 // Limit. Zeit-Diagnose deshalb direkt hierher ins Development-Log posten (temporär zur
-// Fehlersuche bei "hat nicht rechtzeitig reagiert") — ohne auf das volle bootstrap.php (DB) zu
-// warten, damit auch ein DB-Problem die Diagnose nicht verhindert.
-require_once __DIR__ . '/src/Settings.php';
-require_once __DIR__ . '/src/DiscordClient.php';
+// Fehlersuche bei "hat nicht rechtzeitig reagiert").
 DiscordClient::postDevLog('discord_interactions: Timing bis Ack (Client hat Antwort schon)', implode("\n", $__rsvpLog));
 
 /** Schickt das endgültige Ergebnis als Follow-up (ersetzt das "denkt nach …"). */
