@@ -115,7 +115,7 @@ function deploy_from_git(): array
         $restart = run_shell_command('pm2 restart teamverwaltung-rsvp-bot');
         $message .= $restart['ok']
             ? ' RSVP-Bot wurde neu gestartet.'
-            : ' Hinweis: rsvp-bot/ hat sich geändert, „pm2 restart teamverwaltung-rsvp-bot“ ist aber fehlgeschlagen (evtl. noch nicht eingerichtet, siehe rsvp-bot/README.md) — manuell neu starten.';
+            : ' Hinweis: rsvp-bot/ hat sich geändert, „pm2 restart teamverwaltung-rsvp-bot” ist aber fehlgeschlagen — manuell neu starten. Fehler: ' . trim($restart['output']);
     }
 
     return ['ok' => true, 'message' => $message, 'changed' => true, 'diff' => $diffStat];
