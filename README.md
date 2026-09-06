@@ -3,6 +3,8 @@
 Webanwendung zur Verwaltung eines Teams: Mitglieder, Ränge/Berechtigungen, Teams,
 Besprechungen mit RSVP sowie eine tiefe Discord-Integration (Login, automatische
 Rollenvergabe, Mitglieder-Sync, Ankündigungen und Discord-Events für Besprechungen).
+Dazu eine öffentliche Bewerbungsseite mit Stellenausschreibungen, Bewerbungsformular,
+Bewerbungsgespräch-Terminbuchung und internem Review-Dashboard (siehe unten).
 
 Technisch: reines PHP (keine Frameworks/Composer nötig) mit MySQL/MariaDB-Datenbank
 (z. B. über phpMyAdmin verwaltet). Alle Zugangsdaten und Discord-Einstellungen liegen
@@ -235,6 +237,38 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
 - **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
   1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
 
+## Öffentliche Bewerbungsseite
+
+Unter `careers.php` (kein Login nötig) werden alle offenen Stellenausschreibungen
+gelistet. Der komplette Ablauf:
+
+1. **Ausschreibungen verwalten** (`job_postings.php`, Berechtigung
+   `applications.manage`): Titel, Beschreibung, optionales Team (wird bei Annahme
+   automatisch dem neuen Mitglied zugeordnet) und optionale Zusatzfragen (eine pro
+   Zeile) — diese werden Bewerber:innen zusätzlich zu Name, Alter, Discord-Tag,
+   Motivation und Verfügbarkeit gestellt. Jede Ausschreibung bekommt automatisch einen
+   eindeutigen Slug für die öffentliche URL.
+2. **Bewerben** (`careers_apply.php?job=<slug>`): öffentliches Formular ohne Login,
+   landet als Bewerbung mit Status „Neu" im internen Dashboard.
+3. **Bewerbungen sichten** (`applications.php`, `application_view.php`, gleiche
+   Berechtigung): Filter nach Stelle/Status, pro Bewerbung Motivation/Antworten
+   einsehen, interne Notiz hinterlegen, und entweder **zum Gespräch einladen**,
+   **ablehnen** oder direkt **annehmen**.
+4. **Bewerbungsgespräch-Termine** (im Bearbeiten-Formular einer Ausschreibung): das
+   Team legt freie Zeitslots an. Nach einer Einladung erscheint auf der
+   Bewerbungs-Detailseite ein individueller, nicht erratbarer Buchungslink
+   (`careers_booking.php?token=…`) — es gibt **keinen automatischen Versand**, der
+   Link muss manuell (z. B. per Discord-DM) weitergegeben werden. Über den Link wählt
+   sich die Person selbst einen der offenen Slots (Mini-Calendly-Prinzip, race-safe:
+   ein Slot kann nicht doppelt gebucht werden).
+5. **Annahme**: legt automatisch ein aktives Mitgliedskonto an (niedrigster Rang,
+   zugeordnetes Team der Ausschreibung falls gesetzt). Ist ein Discord-Bot
+   konfiguriert, wird zusätzlich versucht, den eingegebenen Discord-Tag eindeutig
+   einem Server-Mitglied zuzuordnen (`DiscordClient::findGuildMemberByTag`) — nur bei
+   genau einem Treffer, damit ein späterer Discord-Login der Person automatisch mit
+   diesem Konto verknüpft wird, statt ein zweites anzulegen. Ohne eindeutigen Treffer
+   bleibt das Konto ohne `discord_id` und muss manuell verknüpft werden.
+
 ## Impressum & Datenschutzerklärung
 
 `impressum.php` und `datenschutz.php` sind ohne Login erreichbar (Pflicht nach § 5 ECG/TMG)
@@ -271,6 +305,7 @@ Berechtigung ist unabhängig pro Rang als Checkbox togglebar, keine ist fest ver
 - `teams.manage` – Teams verwalten
 - `ranks.manage` – Ränge & Berechtigungen verwalten
 - `discord.manage` – Discord-Sync auslösen (Einstellungen selbst kommen aus `.env`)
+- `applications.manage` – Stellenausschreibungen verwalten, Bewerbungen sichten/annehmen/ablehnen
 
 Neue Berechtigungen fügt man in `src/Perm.php` (`Perm::all()`) hinzu — der Rang-Editor
 (`ranks.php`) und alle Prüfungen (`Perm::has()`) sind vollständig generisch und zeigen

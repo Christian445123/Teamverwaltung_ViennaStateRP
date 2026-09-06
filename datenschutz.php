@@ -18,12 +18,13 @@ require __DIR__ . '/includes/header.php';
   </p>
 
   <div class="highlight-box">
-    <strong>Kurzfassung:</strong> Diese Anwendung ist ein internes Werkzeug für
-    ViennaStateRP-Teammitglieder, kein öffentliches Angebot. Es gibt keine Werbung, kein
-    Tracking und keine Analyse-Cookies — nur einen technisch notwendigen Session-Cookie zur
-    Anmeldung. Daten werden ausschließlich zur Teamorganisation (Mitglieder, Ränge,
-    Besprechungen, Anwesenheit) verarbeitet und nicht verkauft oder zu Werbezwecken
-    weitergegeben.
+    <strong>Kurzfassung:</strong> Diese Anwendung ist überwiegend ein internes Werkzeug für
+    ViennaStateRP-Teammitglieder. Öffentlich zugänglich ist ausschließlich die Bewerbungsseite
+    für offene Stellen im Team. Es gibt keine Werbung, kein Tracking und keine
+    Analyse-Cookies — nur einen technisch notwendigen Session-Cookie zur Anmeldung bzw. zur
+    Terminbuchung. Daten werden ausschließlich zur Teamorganisation und -rekrutierung
+    (Mitglieder, Ränge, Besprechungen, Anwesenheit, Bewerbungen) verarbeitet und nicht
+    verkauft oder zu Werbezwecken weitergegeben.
   </div>
 
   <h2>1. Verantwortlicher</h2>
@@ -36,9 +37,12 @@ require __DIR__ . '/includes/header.php';
 
   <h2>2. Charakter dieser Anwendung</h2>
   <p>
-    Mit Ausnahme dieser Seite, des Impressums und der Anmeldeseite ist die Teamverwaltung
-    ausschließlich für angemeldete ViennaStateRP-Teammitglieder zugänglich. Es handelt sich
-    nicht um ein öffentliches Angebot für Serverspieler oder Besucher.
+    Mit Ausnahme dieser Seite, des Impressums, der Anmeldeseite sowie der Bewerbungsseite
+    (<code>careers.php</code> und die davon verlinkten Bewerbungs-/Terminbuchungsseiten) ist
+    die Teamverwaltung ausschließlich für angemeldete ViennaStateRP-Teammitglieder zugänglich.
+    Über die Bewerbungsseite kann sich jede Person ohne Anmeldung auf offene Stellen im
+    ViennaStateRP-Team bewerben und einen Bewerbungsgespräch-Termin buchen — siehe
+    Abschnitt 3g für die dabei verarbeiteten Daten.
   </p>
 
   <h2>3. Welche Daten wir verarbeiten</h2>
@@ -106,6 +110,33 @@ require __DIR__ . '/includes/header.php';
     Änderungen nachvollziehbar zu machen. Rechtsgrundlage: Art. 6 Abs. 1 lit. f DSGVO.
   </p>
 
+  <h3>g) Bewerbungsdaten (öffentliche Bewerbungsseite)</h3>
+  <p>
+    Bewirbst du dich über unsere öffentliche Bewerbungsseite auf eine Stelle im
+    ViennaStateRP-Team, verarbeiten wir die von dir freiwillig im Formular angegebenen Daten:
+    Name, optional Alter, Discord-Tag, dein Motivationstext, optionale Angaben zu deiner
+    zeitlichen Verfügbarkeit sowie Antworten auf etwaige stellenspezifische Zusatzfragen.
+    Rechtsgrundlage ist Art. 6 Abs. 1 lit. b DSGVO (Maßnahmen auf deine Anfrage vor Eingehung
+    einer ehrenamtlichen Mitarbeit im Team) bzw. hilfsweise Art. 6 Abs. 1 lit. f DSGVO
+    (berechtigtes Interesse an der Personalauswahl).
+  </p>
+  <p>
+    Lädt das Team dich zu einem Bewerbungsgespräch ein, erhältst du einen individuellen,
+    nicht erratbaren Buchungslink (manuell per Discord-Nachricht oder E-Mail übermittelt, es
+    gibt keinen automatischen Versand), über den du dir ohne Anmeldung einen freien
+    Gesprächstermin aus den vom Team angelegten Zeitfenstern aussuchen kannst; dabei wird der
+    gewählte Termin mit deiner Bewerbung verknüpft gespeichert.
+  </p>
+  <p>
+    Nur Teammitglieder mit der Berechtigung „Bewerbungen verwalten" können eingegangene
+    Bewerbungen einsehen und bearbeiten. Nimmt das Team deine Bewerbung an, wird automatisch
+    ein Mitgliedskonto mit den von dir angegebenen Daten (Name, Discord-Tag) sowie dem Rang
+    und ggf. Team der Ausschreibung angelegt; ab diesem Zeitpunkt gelten für dich die
+    Abschnitte 3b–3f dieser Erklärung. Bei Ablehnung bleiben die Bewerbungsdaten zu
+    Dokumentationszwecken gespeichert, sofern du nicht ihre Löschung verlangst (siehe
+    Abschnitt 7).
+  </p>
+
   <h2>4. Cookies</h2>
   <p>
     Diese Anwendung setzt ausschließlich einen technisch notwendigen Session-Cookie
@@ -134,6 +165,9 @@ require __DIR__ . '/includes/header.php';
     <li><strong>Konto-/Besprechungsdaten:</strong> so lange die Mitgliedschaft im Team
       besteht; bei Deaktivierung eines Mitglieds auf Anfrage löschbar, soweit keine
       berechtigten Interessen (z. B. Nachvollziehbarkeit im Änderungsprotokoll) entgegenstehen</li>
+    <li><strong>Bewerbungsdaten:</strong> bis zur Entscheidung über die Bewerbung sowie
+      danach für eine angemessene Nachvollziehbarkeitsfrist; auf Anfrage vorzeitig löschbar,
+      bei Annahme gehen die relevanten Daten in das neu angelegte Mitgliedskonto über</li>
   </ul>
 
   <h2>7. Deine Rechte</h2>

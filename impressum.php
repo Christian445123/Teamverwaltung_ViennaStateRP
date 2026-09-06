@@ -30,11 +30,13 @@ require __DIR__ . '/includes/header.php';
 
   <h2>Zweck dieser Anwendung</h2>
   <p>
-    Diese Teamverwaltung ist ein internes, nicht öffentlich zugängliches Werkzeug zur
-    Organisation des ViennaStateRP-Teams (Mitgliederverwaltung, Rang-/Rechtevergabe,
-    Besprechungsplanung und Anwesenheitserfassung). Sie richtet sich ausschließlich an
-    Teammitglieder von ViennaStateRP und steht in keiner Verbindung zu Rockstar Games,
-    Take-Two Interactive, FiveM/Cfx.re oder Discord Inc.
+    Diese Teamverwaltung ist ein überwiegend internes Werkzeug zur Organisation des
+    ViennaStateRP-Teams (Mitgliederverwaltung, Rang-/Rechtevergabe, Besprechungsplanung und
+    Anwesenheitserfassung) und richtet sich in diesem Teil ausschließlich an Teammitglieder
+    von ViennaStateRP. Öffentlich zugänglich ist lediglich die Bewerbungsseite für offene
+    Stellen im Team, über die sich interessierte Personen ohne Anmeldung bewerben und einen
+    Gesprächstermin buchen können. Die Anwendung steht in keiner Verbindung zu Rockstar
+    Games, Take-Two Interactive, FiveM/Cfx.re oder Discord Inc.
   </p>
 
   <h2>Haftungsausschluss</h2>

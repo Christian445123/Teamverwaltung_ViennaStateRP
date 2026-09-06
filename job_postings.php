@@ -35,7 +35,7 @@ $postings = $db->query("
     (SELECT COUNT(*) FROM applications a WHERE a.posting_id = jp.id) AS application_count,
     (SELECT COUNT(*) FROM applications a WHERE a.posting_id = jp.id AND a.status = 'pending') AS pending_count
   FROM job_postings jp LEFT JOIN teams t ON t.id = jp.team_id
-  ORDER BY jp.status ASC, jp.created_at DESC
+  ORDER BY (jp.status = 'open') DESC, jp.created_at DESC
 ")->fetchAll();
 
 $pageTitle = 'Stellenausschreibungen';

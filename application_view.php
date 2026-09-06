@@ -12,7 +12,7 @@ $statusLabels = [
 ];
 
 $id = (int) ($_GET['id'] ?? 0);
-$stmt = $db->prepare("SELECT a.*, jp.title AS posting_title, jp.team_id, jp.slug AS posting_slug FROM applications a JOIN job_postings jp ON jp.id = a.posting_id WHERE a.id = ?");
+$stmt = $db->prepare("SELECT a.*, jp.title AS posting_title, jp.team_id FROM applications a JOIN job_postings jp ON jp.id = a.posting_id WHERE a.id = ?");
 $stmt->execute([$id]);
 $application = $stmt->fetch();
 if (!$application) {
@@ -56,6 +56,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $discordMatch = null;
         if ($application['discord_tag'] && Settings::isBotConfigured()) {
             $discordMatch = DiscordClient::findGuildMemberByTag($application['discord_tag']);
+            if ($discordMatch) {
+                // Schon einem bestehenden Mitglied zugeordnet (z. B. Wiederbewerbung) — nicht
+                // verknüpfen, sonst schlägt der INSERT an der UNIQUE-Constraint auf discord_id fehl.
+                $existsStmt = $db->prepare("SELECT id FROM users WHERE discord_id = ?");
+                $existsStmt->execute([$discordMatch['id']]);
+                if ($existsStmt->fetch()) {
+                    $discordMatch = null;
+                }
+            }
         }
         $lowestRank = $db->query("SELECT id FROM ranks ORDER BY level ASC LIMIT 1")->fetchColumn();
         $stmt = $db->prepare("INSERT INTO users (discord_id, discord_username, discord_avatar, display_name, rank_id, status)
