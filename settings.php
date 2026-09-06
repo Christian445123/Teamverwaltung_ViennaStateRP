@@ -101,9 +101,10 @@ function deploy_from_git(): array
 
     $after = trim(run_shell_command('git rev-parse --short HEAD')['output']);
     if ($before === $after) {
-        return ['ok' => true, 'message' => 'Bereits aktuell — keine neuen Commits.', 'changed' => false];
+        return ['ok' => true, 'message' => 'Bereits aktuell — keine neuen Commits.', 'changed' => false, 'diff' => ''];
     }
-    return ['ok' => true, 'message' => "Deployment erfolgreich: {$before} → {$after}.", 'changed' => true];
+    $diffStat = trim(run_shell_command('git diff --stat ' . escapeshellarg($before) . ' ' . escapeshellarg($after))['output']);
+    return ['ok' => true, 'message' => "Deployment erfolgreich: {$before} → {$after}.", 'changed' => true, 'diff' => $diffStat];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -133,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = deploy_from_git();
         flash($result['ok'] ? 'success' : 'error', $result['message']);
         audit_log('settings.deploy', $result['message']);
-        DiscordClient::postDeployLog($result['ok'], $result['message']);
+        DiscordClient::postDeployLog($result['ok'], $result['message'], $result['diff'] ?? '', $user['display_name']);
         redirect(url('settings.php'));
     }
 
@@ -256,11 +257,14 @@ require __DIR__ . '/includes/header.php';
   <?php else: ?>
     <p class="text-muted" style="font-size:13px;">Konnte den aktuellen Git-Stand nicht ermitteln — ist dieses Verzeichnis ein Git-Checkout mit konfiguriertem Remote?</p>
   <?php endif; ?>
-  <form method="post">
-    <?= csrf_field() ?>
-    <input type="hidden" name="action" value="deploy">
-    <button class="btn" type="submit">🚀 Jetzt deployen (git pull)</button>
-  </form>
+  <div class="btn-row">
+    <form method="post">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="deploy">
+      <button class="btn" type="submit">🚀 Jetzt deployen (git pull)</button>
+    </form>
+    <button class="btn secondary" type="button" onclick="location.reload()">🔄 Seite neu laden</button>
+  </div>
 </div>
 
 <div class="card settings-section">

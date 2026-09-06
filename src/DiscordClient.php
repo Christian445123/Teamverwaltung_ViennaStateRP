@@ -872,20 +872,30 @@ class DiscordClient
      * Development-/Fehler-Log-Kanal wie postDevLog() — sowohl bei Erfolg als auch bei
      * Fehlschlag, damit jeder Deploy dort nachvollziehbar ist (eigene grün/rote Einfärbung statt
      * der reinen Fehler-Optik von postDevLog(), ein erfolgreicher Deploy ist ja kein Bug).
+     * $diff ist die "git diff --stat"-Ausgabe (welche Dateien sich geändert haben) und $actorName
+     * die Person, die im Portal auf "Jetzt deployen" geklickt hat.
      */
-    public static function postDeployLog(bool $ok, string $message): void
+    public static function postDeployLog(bool $ok, string $message, string $diff = '', ?string $actorName = null): void
     {
         try {
             $webhook = Settings::get('discord_dev_log_webhook_url');
             if (!$webhook) return;
 
+            $description = "**Ergebnis:** {$message}";
+            if ($diff !== '') {
+                $description .= "\n```\n" . mb_substr($diff, 0, 1600) . "\n```";
+            }
+
             $embed = [
-                'title' => $ok ? '✅ Deploy erfolgreich' : '❌ Deploy fehlgeschlagen',
-                'description' => mb_substr($message, 0, 1900),
+                'title' => $ok ? '🚀 Deploy (git pull) ausgeführt' : '❌ Deploy fehlgeschlagen',
+                'description' => $description,
                 'color' => $ok ? 0x23A55A : 0xED4245,
                 'footer' => ['text' => Settings::appUrl()],
                 'timestamp' => date('c'),
             ];
+            if ($actorName) {
+                $embed['fields'] = [['name' => 'Von', 'value' => "{$actorName} (Web)", 'inline' => false]];
+            }
             self::request('POST', rtrim($webhook, '/') . '?wait=false', json_encode(['embeds' => [$embed]]), ['Content-Type: application/json'], 4);
         } catch (\Throwable $e) {
             // Absichtlich verschluckt — siehe postDevLog().
