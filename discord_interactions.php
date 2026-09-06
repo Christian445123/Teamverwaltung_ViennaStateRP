@@ -205,6 +205,7 @@ try {
 } catch (\Throwable $e) {
     error_log('[discord_interactions] ' . $e->getMessage());
     log_rsvp_timing('Follow-up gesendet (Fehler: ' . $e->getMessage() . ')', $__rsvpStart);
+    DiscordClient::postDevLog('discord_interactions: ' . get_class($e) . ': ' . $e->getMessage(), $e->getFile() . ':' . $e->getLine());
     if (!empty($applicationId) && !empty($interactionToken)) {
         send_followup($applicationId, $interactionToken, 'Es ist ein Fehler aufgetreten. Bitte später erneut versuchen oder im Dashboard antworten.');
     }

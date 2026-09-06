@@ -246,6 +246,17 @@ aus `ranks.discord_role_id` (unter *Ränge* einstellbar, nicht in der `.env`), d
 trägt bekannte IDs einmalig vor, sofern dort noch keine gesetzt ist. Ohne Zuordnung wird nur
 ohne Ping gepostet, ohne Webhook passiert gar nichts.
 
+## Development-/Fehler-Log in Discord
+
+Optional werden unerwartete technische Fehler — uncaught Exceptions, PHP-Warnings/-Errors,
+Fatal Errors — automatisch in einen eigenen Discord-Kanal gepostet, getrennt vom
+Aktivitäts-Log (das ist für normale Nutzeraktionen, nicht für Bugs): `DISCORD_DEV_LOG_WEBHOOK_URL`
+in der `.env` setzen. Die Handler dafür (`set_exception_handler`, `set_error_handler`,
+`register_shutdown_function`) werden in `bootstrap.php` registriert, noch vor der ersten
+DB-Verbindung — selbst ein DB-Verbindungsfehler wird also noch gemeldet. Läuft immer
+zusätzlich zum normalen PHP-Error-Log, nie stattdessen, und blockiert bei einem Problem mit
+dem Webhook selbst nie die Anwendung (best-effort, 4s Timeout, Exceptions werden verschluckt).
+
 ## Aktivitäts-Log in Discord
 
 Optional lässt sich jede protokollierte Aktion zusätzlich als Embed in einen Discord-Kanal

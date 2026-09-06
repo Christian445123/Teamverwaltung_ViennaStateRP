@@ -257,6 +257,7 @@ require __DIR__ . '/includes/header.php';
   <?php status_row('Ankündigungs-Channel-ID', (bool) Settings::get('discord_announce_channel_id'), 'DISCORD_ANNOUNCE_CHANNEL_ID'); ?>
   <?php status_row('Aktivitäts-Log-Webhook (z. B. teambot-log)', (bool) Settings::get('discord_log_webhook_url'), 'DISCORD_LOG_WEBHOOK_URL'); ?>
   <?php status_row('Bewerbungs-Benachrichtigungs-Webhook', (bool) Settings::get('discord_applications_webhook_url'), 'DISCORD_APPLICATIONS_WEBHOOK_URL'); ?>
+  <?php status_row('Development-/Fehler-Log-Webhook', (bool) Settings::get('discord_dev_log_webhook_url'), 'DISCORD_DEV_LOG_WEBHOOK_URL'); ?>
 
   <p class="field-hint" style="margin-top:14px;">Redirect-URI für das Discord Developer Portal: <code><?= e(DiscordClient::redirectUri()) ?></code><br>Interactions Endpoint URL (für Zu-/Absage-Buttons ohne Login): <code><?= e(Settings::appUrl() . '/discord_interactions.php') ?></code><br>Wichtig: Für funktionierende Zu-/Absage-Buttons müssen <strong>Bot-Token + Ankündigungs-Channel-ID</strong> gesetzt sein — ein reiner Webhook kann Button-Klicks nicht zuverlässig an <code>DISCORD_PUBLIC_KEY</code> ausliefern (ist zusätzlich ein Webhook konfiguriert, hat der Bot bei Buttons trotzdem Vorrang; ohne Bot-Kanal zeigt die Webhook-Nachricht nur den immer funktionierenden „Zum Meeting"-Link).</p>
 </div>

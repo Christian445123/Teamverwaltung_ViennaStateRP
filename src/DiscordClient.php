@@ -826,6 +826,33 @@ class DiscordClient
     }
 
     /**
+     * Postet einen unerwarteten technischen Fehler (uncaught Exception, PHP-Fehler/Warning,
+     * Fatal Error — siehe die Handler in bootstrap.php) in den optionalen Development-/Fehler-Log-
+     * Kanal (DISCORD_DEV_LOG_WEBHOOK_URL). Bewusst getrennt vom normalen Aktivitäts-Log
+     * (postLogEvent()): hier geht es um technische Fehler, nicht um Nutzeraktionen. Best-effort
+     * mit kurzem Timeout — ein Fehler beim Melden des Fehlers darf die Anwendung nie zusätzlich
+     * zum Absturz bringen, daher auch kein Rückgabewert und keine Exceptions nach außen.
+     */
+    public static function postDevLog(string $title, string $details): void
+    {
+        try {
+            $webhook = Settings::get('discord_dev_log_webhook_url');
+            if (!$webhook) return;
+
+            $embed = [
+                'title' => '🐛 ' . mb_substr($title, 0, 250),
+                'description' => '```' . mb_substr($details, 0, 1900) . '```',
+                'color' => 0xED4245,
+                'footer' => ['text' => Settings::appUrl()],
+                'timestamp' => date('c'),
+            ];
+            self::request('POST', rtrim($webhook, '/') . '?wait=false', json_encode(['embeds' => [$embed]]), ['Content-Type: application/json'], 4);
+        } catch (\Throwable $e) {
+            // Absichtlich verschluckt — siehe Docblock oben.
+        }
+    }
+
+    /**
      * Postet eine protokollierte Aktion (siehe audit_log() in helpers.php) als Embed in den
      * optionalen Aktivitäts-Log-Kanal (DISCORD_LOG_WEBHOOK_URL). Rein informativ und best-effort:
      * ohne konfigurierten Webhook passiert nichts, ein fehlgeschlagener Request blockiert oder

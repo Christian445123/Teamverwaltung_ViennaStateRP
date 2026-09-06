@@ -23,6 +23,7 @@ class Settings
         'discord_announce_channel_id' => 'DISCORD_ANNOUNCE_CHANNEL_ID',
         'discord_log_webhook_url' => 'DISCORD_LOG_WEBHOOK_URL',
         'discord_applications_webhook_url' => 'DISCORD_APPLICATIONS_WEBHOOK_URL',
+        'discord_dev_log_webhook_url' => 'DISCORD_DEV_LOG_WEBHOOK_URL',
     ];
 
     public static function get(string $key, ?string $default = null): ?string
