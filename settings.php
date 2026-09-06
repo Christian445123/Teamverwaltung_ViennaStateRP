@@ -85,7 +85,19 @@ function run_shell_command(string $cmd): array
 function run_pm2_command(string $args): array
 {
     $home = dirname(__DIR__, 2);
-    return run_shell_command('HOME=' . escapeshellarg($home) . ' pm2 ' . $args);
+    $result = run_shell_command('HOME=' . escapeshellarg($home) . ' pm2 ' . $args);
+    if (!$result['ok']) {
+        // Schlägt es trotz gesetztem HOME fehl, direkt die Diagnosedaten mitliefern, statt im
+        // Blindflug weiter zu raten: welcher Nutzer/HOME führt PHP hier aus, welches HOME wurde
+        // versucht, existiert dort überhaupt ein PM2-Daemon-Verzeichnis, und was sieht "pm2 list"
+        // MIT diesem HOME tatsächlich an laufenden Prozessen.
+        $whoami = trim(run_shell_command('whoami')['output']);
+        $nativeHome = trim(run_shell_command('echo $HOME')['output']);
+        $pm2DirExists = is_dir($home . '/.pm2') ? 'ja' : 'NEIN';
+        $pm2List = trim(run_shell_command('HOME=' . escapeshellarg($home) . ' pm2 jlist')['output']);
+        $result['output'] .= "\n\n[Diagnose] whoami=\"{$whoami}\" natives \$HOME=\"{$nativeHome}\" versuchtes HOME=\"{$home}\" {$home}/.pm2 existiert=\"{$pm2DirExists}\"\npm2 jlist (mit versuchtem HOME): " . mb_substr($pm2List, 0, 800);
+    }
+    return $result;
 }
 
 /**
