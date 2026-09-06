@@ -10,12 +10,13 @@ $application = $stmt->fetch();
 
 if (!$application) {
     $pageTitle = 'Ungültiger Link';
-    require __DIR__ . '/includes/header.php';
+    require __DIR__ . '/includes/careers_header.php';
     ?>
-    <div class="public-page">
-      <div class="card"><h2>Ungültiger Link</h2><p>Dieser Buchungslink ist nicht gültig. Bitte prüfe, ob du ihn vollständig kopiert hast.</p></div>
+    <div class="careers-card-form">
+      <h2 style="margin-top:0;">Ungültiger Link</h2>
+      <p style="color:var(--c-text-muted);">Dieser Buchungslink ist nicht gültig. Bitte prüfe, ob du ihn vollständig kopiert hast.</p>
     </div>
-    <?php require __DIR__ . '/includes/footer.php'; exit;
+    <?php require __DIR__ . '/includes/careers_footer.php'; exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -61,54 +62,53 @@ if ($application['status'] === 'interview_invited') {
 }
 
 $pageTitle = 'Terminbuchung';
-require __DIR__ . '/includes/header.php';
+require __DIR__ . '/includes/careers_header.php';
 ?>
-<div class="public-page">
-  <div class="page-header"><h1>Terminbuchung: <?= e($application['posting_title']) ?></h1></div>
+<div class="careers-detail-header"><h1>Terminbuchung: <?= e($application['posting_title']) ?></h1></div>
 
-  <div class="card">
-    <p>Hallo <?= e($application['applicant_name']) ?>,</p>
+<div class="careers-card-form">
+  <p>Hallo <?= e($application['applicant_name']) ?>,</p>
 
-    <?php if ($application['status'] === 'pending'): ?>
-      <p>deine Bewerbung wird noch geprüft. Sobald wir dich zu einem Gespräch einladen möchten, kannst du hier deinen Wunschtermin wählen.</p>
+  <?php if ($application['status'] === 'pending'): ?>
+    <p>deine Bewerbung wird noch geprüft. Sobald wir dich zu einem Gespräch einladen möchten, kannst du hier deinen Wunschtermin wählen.</p>
 
-    <?php elseif ($application['status'] === 'rejected'): ?>
-      <p>vielen Dank für dein Interesse — leider können wir dir aktuell keinen Platz anbieten.</p>
+  <?php elseif ($application['status'] === 'rejected'): ?>
+    <p>vielen Dank für dein Interesse — leider können wir dir aktuell keinen Platz anbieten.</p>
 
-    <?php elseif ($application['status'] === 'accepted'): ?>
-      <p>deine Bewerbung wurde bereits angenommen — ein Termin ist hier nicht mehr nötig. Wir freuen uns auf dich!</p>
+  <?php elseif ($application['status'] === 'accepted'): ?>
+    <p>deine Bewerbung wurde bereits angenommen — ein Termin ist hier nicht mehr nötig. Wir freuen uns auf dich!</p>
 
-    <?php elseif ($application['status'] === 'interview_scheduled' && $bookedSlot): ?>
-      <p>dein Bewerbungsgespräch ist terminiert für:</p>
-      <p style="font-size:18px;"><strong><?= e(fmt_datetime($bookedSlot['start_time'])) ?> Uhr</strong></p>
-      <form method="post" data-confirm="Termin wirklich freigeben und neu wählen?">
-        <?= csrf_field() ?>
-        <input type="hidden" name="token" value="<?= e($token) ?>">
-        <input type="hidden" name="action" value="release">
-        <button class="btn secondary" type="submit">Anderen Termin wählen</button>
-      </form>
+  <?php elseif ($application['status'] === 'interview_scheduled' && $bookedSlot): ?>
+    <p>dein Bewerbungsgespräch ist terminiert für:</p>
+    <p style="font-size:18px;"><strong><?= e(fmt_datetime($bookedSlot['start_time'])) ?> Uhr</strong></p>
+    <form method="post">
+      <?= csrf_field() ?>
+      <input type="hidden" name="token" value="<?= e($token) ?>">
+      <input type="hidden" name="action" value="release">
+      <button class="careers-btn-outline" type="submit">Anderen Termin wählen</button>
+    </form>
 
-    <?php elseif ($application['status'] === 'interview_invited'): ?>
-      <p>bitte wähle einen der folgenden freien Termine für dein Bewerbungsgespräch:</p>
-      <?php if (!$openSlots): ?>
-        <div class="empty-state">Aktuell sind keine freien Termine verfügbar. Bitte wende dich an das Team.</div>
-      <?php else: ?>
-      <div class="slot-list">
-        <?php foreach ($openSlots as $s): ?>
-          <div class="slot-item">
-            <div><strong><?= e(fmt_datetime($s['start_time'])) ?> Uhr</strong></div>
-            <form method="post">
-              <?= csrf_field() ?>
-              <input type="hidden" name="token" value="<?= e($token) ?>">
-              <input type="hidden" name="action" value="book">
-              <input type="hidden" name="slot_id" value="<?= $s['id'] ?>">
-              <button class="btn small" type="submit">Wählen</button>
-            </form>
-          </div>
-        <?php endforeach; ?>
-      </div>
-      <?php endif; ?>
+  <?php elseif ($application['status'] === 'interview_invited'): ?>
+    <p>bitte wähle einen der folgenden freien Termine für dein Bewerbungsgespräch:</p>
+    <?php if (!$openSlots): ?>
+      <div class="careers-empty">Aktuell sind keine freien Termine verfügbar. Bitte wende dich an das Team.</div>
+    <?php else: ?>
+    <div class="careers-slot-list">
+      <?php foreach ($openSlots as $s): ?>
+        <div class="careers-slot-item">
+          <div><strong><?= e(fmt_datetime($s['start_time'])) ?> Uhr</strong></div>
+          <form method="post">
+            <?= csrf_field() ?>
+            <input type="hidden" name="token" value="<?= e($token) ?>">
+            <input type="hidden" name="action" value="book">
+            <input type="hidden" name="slot_id" value="<?= $s['id'] ?>">
+            <button class="careers-btn-primary" type="submit">Wählen</button>
+          </form>
+        </div>
+      <?php endforeach; ?>
+    </div>
     <?php endif; ?>
-  </div>
+  <?php endif; ?>
 </div>
-<?php require __DIR__ . '/includes/footer.php'; ?>
+
+<?php require __DIR__ . '/includes/careers_footer.php'; ?>

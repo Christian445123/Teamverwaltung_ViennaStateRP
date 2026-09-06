@@ -5,7 +5,7 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 class DB
 {
     // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
-    private const SCHEMA_VERSION = 4;
+    private const SCHEMA_VERSION = 5;
 
     private static ?PDO $instance = null;
 
@@ -257,6 +257,17 @@ class DB
             CONSTRAINT fk_jp_team FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE SET NULL,
             CONSTRAINT fk_jp_user FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+        // "Dein Profil"-Anforderungstext und Banner-Bild wurden nachträglich ergänzt (Vorbild:
+        // GalaxyBot-Stellenanzeigen-Layout) — auf bereits bestehenden Installationen per ALTER
+        // nachziehen, da CREATE TABLE IF NOT EXISTS dort nicht mehr greift.
+        $existingJobPostingCols = $db->query("SHOW COLUMNS FROM `job_postings`")->fetchAll(PDO::FETCH_COLUMN);
+        if (!in_array('requirements', $existingJobPostingCols, true)) {
+            $db->exec("ALTER TABLE `job_postings` ADD COLUMN `requirements` TEXT NULL AFTER `description`");
+        }
+        if (!in_array('image_url', $existingJobPostingCols, true)) {
+            $db->exec("ALTER TABLE `job_postings` ADD COLUMN `image_url` VARCHAR(500) NULL AFTER `requirements`");
+        }
 
         $db->exec("CREATE TABLE IF NOT EXISTS job_posting_questions (
             id INT UNSIGNED NOT NULL AUTO_INCREMENT,

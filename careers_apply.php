@@ -17,7 +17,6 @@ $stmt = $db->prepare("SELECT * FROM job_posting_questions WHERE posting_id = ? O
 $stmt->execute([$posting['id']]);
 $questions = $stmt->fetchAll();
 
-$submitted = false;
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -60,58 +59,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $submitted = isset($_GET['submitted']);
 
 $pageTitle = 'Bewerbung: ' . $posting['title'];
-require __DIR__ . '/includes/header.php';
+require __DIR__ . '/includes/careers_header.php';
 ?>
-<div class="public-page">
-  <div class="page-header">
-    <h1>Bewerbung: <?= e($posting['title']) ?></h1>
-    <a href="<?= url('careers.php') ?>" class="btn secondary">Alle Stellen</a>
-  </div>
-
-  <?php if ($submitted): ?>
-    <div class="card">
-      <h2>Danke für deine Bewerbung!</h2>
-      <p>Wir haben deine Bewerbung erhalten und melden uns, sobald wir sie gesichtet haben.</p>
-    </div>
-  <?php else: ?>
-    <div class="card">
-      <?php if ($errors): ?>
-        <div class="flash flash-error"><?php foreach ($errors as $err): ?><?= e($err) ?><br><?php endforeach; ?></div>
-      <?php endif; ?>
-      <form method="post">
-        <?= csrf_field() ?>
-        <input type="hidden" name="job" value="<?= e($slug) ?>">
-        <div class="form-row">
-          <div class="field">
-            <label>Name *</label>
-            <input type="text" name="applicant_name" value="<?= e($_POST['applicant_name'] ?? '') ?>" required>
-          </div>
-          <div class="field">
-            <label>Alter</label>
-            <input type="text" name="applicant_age" value="<?= e($_POST['applicant_age'] ?? '') ?>">
-          </div>
-        </div>
-        <div class="field">
-          <label>Discord-Tag (optional)</label>
-          <input type="text" name="discord_tag" value="<?= e($_POST['discord_tag'] ?? '') ?>" placeholder="z. B. deinname — falls du Discord nutzt">
-        </div>
-        <div class="field">
-          <label>Verfügbarkeit (Zeiten/Tage)</label>
-          <textarea name="availability" rows="3"><?= e($_POST['availability'] ?? '') ?></textarea>
-        </div>
-        <div class="field">
-          <label>Motivation *</label>
-          <textarea name="motivation" rows="5" required><?= e($_POST['motivation'] ?? '') ?></textarea>
-        </div>
-        <?php foreach ($questions as $q): ?>
-        <div class="field">
-          <label><?= e($q['label']) ?></label>
-          <textarea name="question_<?= $q['id'] ?>" rows="3"><?= e($_POST['question_' . $q['id']] ?? '') ?></textarea>
-        </div>
-        <?php endforeach; ?>
-        <button class="btn" type="submit">Bewerbung absenden</button>
-      </form>
-    </div>
-  <?php endif; ?>
+<a href="<?= url('careers_job.php?job=' . urlencode($slug)) ?>" class="careers-breadcrumb">← <?= e($posting['title']) ?></a>
+<div class="careers-detail-header">
+  <h1>Bewerbung</h1>
 </div>
-<?php require __DIR__ . '/includes/footer.php'; ?>
+
+<?php if ($submitted): ?>
+  <div class="careers-card-form">
+    <h2 style="margin-top:0;">Danke für deine Bewerbung!</h2>
+    <p style="color:var(--c-text-muted);">Wir haben deine Bewerbung erhalten und melden uns, sobald wir sie gesichtet haben.</p>
+  </div>
+<?php else: ?>
+  <div class="careers-card-form">
+    <?php if ($errors): ?>
+      <div class="careers-flash careers-flash-error"><?php foreach ($errors as $err): ?><?= e($err) ?><br><?php endforeach; ?></div>
+    <?php endif; ?>
+    <form method="post">
+      <?= csrf_field() ?>
+      <input type="hidden" name="job" value="<?= e($slug) ?>">
+      <div class="careers-form-row">
+        <div class="careers-field">
+          <label>Name *</label>
+          <input type="text" name="applicant_name" value="<?= e($_POST['applicant_name'] ?? '') ?>" required>
+        </div>
+        <div class="careers-field">
+          <label>Alter</label>
+          <input type="text" name="applicant_age" value="<?= e($_POST['applicant_age'] ?? '') ?>">
+        </div>
+      </div>
+      <div class="careers-field">
+        <label>Discord-Tag (optional)</label>
+        <input type="text" name="discord_tag" value="<?= e($_POST['discord_tag'] ?? '') ?>" placeholder="z. B. deinname — falls du Discord nutzt">
+      </div>
+      <div class="careers-field">
+        <label>Verfügbarkeit (Zeiten/Tage)</label>
+        <textarea name="availability" rows="3"><?= e($_POST['availability'] ?? '') ?></textarea>
+      </div>
+      <div class="careers-field">
+        <label>Motivation *</label>
+        <textarea name="motivation" rows="5" required><?= e($_POST['motivation'] ?? '') ?></textarea>
+      </div>
+      <?php foreach ($questions as $q): ?>
+      <div class="careers-field">
+        <label><?= e($q['label']) ?></label>
+        <textarea name="question_<?= $q['id'] ?>" rows="3"><?= e($_POST['question_' . $q['id']] ?? '') ?></textarea>
+      </div>
+      <?php endforeach; ?>
+      <button class="careers-btn-primary" type="submit">🖊 Bewerbung absenden</button>
+    </form>
+  </div>
+<?php endif; ?>
+
+<?php require __DIR__ . '/includes/careers_footer.php'; ?>

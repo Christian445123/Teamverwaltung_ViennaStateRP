@@ -70,6 +70,33 @@ function audit_log(string $action, string $details = ''): void
     $stmt->execute([$user['id'] ?? null, $action, $details]);
 }
 
+/**
+ * Rendert Freitext (Stellenbeschreibung/Anforderungen) als HTML-Absätze: doppelte Zeilenumbrüche
+ * trennen Absätze, einfache werden zu <br>. Beginnt eine Zeile mit "Begriff — Erklärung" (Vorbild:
+ * GalaxyBot-Anforderungslisten), wird der Teil vor dem Gedankenstrich fett hervorgehoben. Escaped
+ * jeden Textbaustein einzeln über e() — die einzigen erzeugten Tags (<p>/<br>/<strong>) sind fest.
+ */
+function render_rich_text(?string $text): string
+{
+    if (!$text || trim($text) === '') return '';
+    $paragraphs = preg_split('/\n\s*\n/', trim($text));
+    $html = '';
+    foreach ($paragraphs as $paragraph) {
+        $paragraph = trim($paragraph);
+        if ($paragraph === '') continue;
+        $lineHtml = [];
+        foreach (explode("\n", $paragraph) as $line) {
+            if (preg_match('/^(.+?)\s+—\s+(.+)$/u', $line, $m)) {
+                $lineHtml[] = '<strong>' . e($m[1]) . '</strong> — ' . e($m[2]);
+            } else {
+                $lineHtml[] = e($line);
+            }
+        }
+        $html .= '<p>' . implode('<br>', $lineHtml) . '</p>';
+    }
+    return $html;
+}
+
 function base_path(): string
 {
     return rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/');

@@ -79,6 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // action === 'save'
     $title = trim($_POST['title'] ?? '');
     $description = trim($_POST['description'] ?? '');
+    $requirements = trim($_POST['requirements'] ?? '');
+    $imageUrl = trim($_POST['image_url'] ?? '');
     $teamId = $_POST['team_id'] !== '' ? (int) $_POST['team_id'] : null;
     $status = $_POST['status'] === 'closed' ? 'closed' : 'open';
     $questionLines = array_values(array_filter(array_map('trim', explode("\n", $_POST['questions'] ?? ''))));
@@ -89,13 +91,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($posting) {
-        $db->prepare("UPDATE job_postings SET title=?, description=?, team_id=?, status=? WHERE id=?")
-            ->execute([$title, $description ?: null, $teamId, $status, $posting['id']]);
+        $db->prepare("UPDATE job_postings SET title=?, description=?, requirements=?, image_url=?, team_id=?, status=? WHERE id=?")
+            ->execute([$title, $description ?: null, $requirements ?: null, $imageUrl ?: null, $teamId, $status, $posting['id']]);
         $postingId = $posting['id'];
     } else {
         $slug = unique_slug($db, $title, null);
-        $db->prepare("INSERT INTO job_postings (title, slug, description, team_id, status, created_by) VALUES (?, ?, ?, ?, 'open', ?)")
-            ->execute([$title, $slug, $description ?: null, $teamId, $user['id']]);
+        $db->prepare("INSERT INTO job_postings (title, slug, description, requirements, image_url, team_id, status, created_by) VALUES (?, ?, ?, ?, ?, ?, 'open', ?)")
+            ->execute([$title, $slug, $description ?: null, $requirements ?: null, $imageUrl ?: null, $teamId, $user['id']]);
         $postingId = $db->lastInsertId();
     }
 
@@ -136,7 +138,12 @@ $pageTitle = $posting ? 'Ausschreibung bearbeiten' : 'Ausschreibung erstellen';
 $active = 'job_postings';
 require __DIR__ . '/includes/header.php';
 ?>
-<div class="page-header"><h1><?= e($pageTitle) ?></h1></div>
+<div class="page-header">
+  <h1><?= e($pageTitle) ?></h1>
+  <?php if ($posting && $posting['status'] === 'open'): ?>
+    <a href="<?= url('careers_job.php?job=' . urlencode($posting['slug'])) ?>" class="btn secondary" target="_blank">Öffentliche Ansicht</a>
+  <?php endif; ?>
+</div>
 
 <div class="card" style="max-width:640px;">
   <form method="post">
@@ -147,9 +154,19 @@ require __DIR__ . '/includes/header.php';
       <input type="text" name="title" value="<?= e($posting['title'] ?? '') ?>" required>
     </div>
     <div class="field">
+      <label>Bild-URL (optional)</label>
+      <input type="text" name="image_url" value="<?= e($posting['image_url'] ?? '') ?>" placeholder="https://…">
+      <div class="field-hint">Banner-Bild auf Karte und Detailseite. Muss extern gehostet sein (kein Upload).</div>
+    </div>
+    <div class="field">
       <label>Beschreibung</label>
       <textarea name="description" rows="5"><?= e($posting['description'] ?? '') ?></textarea>
-      <div class="field-hint">Wird auf der öffentlichen Bewerbungsseite angezeigt.</div>
+      <div class="field-hint">Allgemeiner Überblick über die Stelle. Leerzeile = neuer Absatz; "Begriff — Erklärung" am Zeilenanfang wird auf der Bewerbungsseite fett hervorgehoben.</div>
+    </div>
+    <div class="field">
+      <label>Anforderungen (optional)</label>
+      <textarea name="requirements" rows="6"><?= e($posting['requirements'] ?? '') ?></textarea>
+      <div class="field-hint">Wird auf der Bewerbungsseite unter „Dein Profil" angezeigt. Gleiche Formatierung wie bei der Beschreibung.</div>
     </div>
     <div class="form-row">
       <div class="field">

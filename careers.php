@@ -5,22 +5,39 @@ $db = DB::get();
 
 $postings = $db->query("SELECT * FROM job_postings WHERE status = 'open' ORDER BY created_at DESC")->fetchAll();
 
-$pageTitle = 'Offene Stellen';
-require __DIR__ . '/includes/header.php';
-?>
-<div class="public-page">
-  <div class="page-header">
-    <h1>Offene Stellen bei ViennaStateRP</h1>
-  </div>
+function careers_excerpt(?string $text, int $length = 140): string
+{
+    $text = trim(preg_replace('/\s+/', ' ', $text ?? ''));
+    if ($text === '') return '';
+    return mb_strlen($text) > $length ? mb_substr($text, 0, $length) . '…' : $text;
+}
 
-  <?php if (!$postings): ?>
-    <div class="card"><div class="empty-state">Aktuell gibt es keine offenen Stellen. Schau später wieder vorbei!</div></div>
-  <?php else: foreach ($postings as $p): ?>
-    <div class="card">
-      <div class="card-title" style="font-size:18px;"><?= e($p['title']) ?></div>
-      <?php if ($p['description']): ?><p style="white-space:pre-wrap;"><?= e($p['description']) ?></p><?php endif; ?>
-      <a href="<?= url('careers_apply.php?job=' . urlencode($p['slug'])) ?>" class="btn">Jetzt bewerben</a>
-    </div>
-  <?php endforeach; endif; ?>
+$pageTitle = 'Offene Stellen';
+require __DIR__ . '/includes/careers_header.php';
+?>
+<div class="careers-hero">
+  <h1>ViennaStateRP</h1>
 </div>
-<?php require __DIR__ . '/includes/footer.php'; ?>
+<hr class="careers-hero-divider">
+
+<?php if (!$postings): ?>
+  <div class="careers-empty">Aktuell gibt es keine offenen Stellen. Schau später wieder vorbei!</div>
+<?php else: ?>
+<div class="careers-grid">
+  <?php foreach ($postings as $p): ?>
+    <a href="<?= url('careers_job.php?job=' . urlencode($p['slug'])) ?>" class="careers-card">
+      <?php if ($p['image_url']): ?>
+        <img class="careers-card-img" src="<?= e($p['image_url']) ?>" alt="">
+      <?php endif; ?>
+      <div class="careers-card-body">
+        <h3><?= e($p['title']) ?></h3>
+        <?php if ($excerpt = careers_excerpt($p['description'])): ?>
+          <div class="careers-card-excerpt"><?= e($excerpt) ?></div>
+        <?php endif; ?>
+      </div>
+    </a>
+  <?php endforeach; ?>
+</div>
+<?php endif; ?>
+
+<?php require __DIR__ . '/includes/careers_footer.php'; ?>
