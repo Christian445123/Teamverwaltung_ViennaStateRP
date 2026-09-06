@@ -31,9 +31,13 @@ header('X-Accel-Buffering: no'); // nginx: Antwort nicht puffern, sofort durchre
 
 define('APP_BOOTSTRAPPED', true);
 $__rsvpStart = microtime(true);
+$__rsvpLog = [];
 function log_rsvp_timing(string $label, float $start): void
 {
-    error_log(sprintf('[discord_interactions] %s nach %.3fs', $label, microtime(true) - $start));
+    global $__rsvpLog;
+    $line = sprintf('%s nach %.3fs', $label, microtime(true) - $start);
+    $__rsvpLog[] = $line;
+    error_log('[discord_interactions] ' . $line);
 }
 require_once __DIR__ . '/src/Env.php';
 Env::load();
@@ -94,6 +98,15 @@ if (function_exists('fastcgi_finish_request')) {
     flush();
 }
 log_rsvp_timing('Ack gesendet (fastcgi_finish_request=' . (function_exists('fastcgi_finish_request') ? 'ja' : 'NEIN') . ')', $__rsvpStart);
+
+// Ab hier ist die Antwort an Discord bereits raus (Verbindung per fastcgi_finish_request aktiv
+// beendet bzw. geflusht) — ein weiterer HTTP-Call kostet ab jetzt nichts mehr fürs 3-Sekunden-
+// Limit. Zeit-Diagnose deshalb direkt hierher ins Development-Log posten (temporär zur
+// Fehlersuche bei "hat nicht rechtzeitig reagiert") — ohne auf das volle bootstrap.php (DB) zu
+// warten, damit auch ein DB-Problem die Diagnose nicht verhindert.
+require_once __DIR__ . '/src/Settings.php';
+require_once __DIR__ . '/src/DiscordClient.php';
+DiscordClient::postDevLog('discord_interactions: Timing bis Ack (Client hat Antwort schon)', implode("\n", $__rsvpLog));
 
 /** Schickt das endgültige Ergebnis als Follow-up (ersetzt das "denkt nach …"). */
 function send_followup(string $applicationId, string $interactionToken, string $content): void
@@ -205,7 +218,10 @@ try {
 } catch (\Throwable $e) {
     error_log('[discord_interactions] ' . $e->getMessage());
     log_rsvp_timing('Follow-up gesendet (Fehler: ' . $e->getMessage() . ')', $__rsvpStart);
-    DiscordClient::postDevLog('discord_interactions: ' . get_class($e) . ': ' . $e->getMessage(), $e->getFile() . ':' . $e->getLine());
+    DiscordClient::postDevLog(
+        'discord_interactions: ' . get_class($e) . ': ' . $e->getMessage(),
+        $e->getFile() . ':' . $e->getLine() . "\n\n" . implode("\n", $__rsvpLog)
+    );
     if (!empty($applicationId) && !empty($interactionToken)) {
         send_followup($applicationId, $interactionToken, 'Es ist ein Fehler aufgetreten. Bitte später erneut versuchen oder im Dashboard antworten.');
     }
