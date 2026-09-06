@@ -104,7 +104,21 @@ function deploy_from_git(): array
         return ['ok' => true, 'message' => 'Bereits aktuell — keine neuen Commits.', 'changed' => false, 'diff' => ''];
     }
     $diffStat = trim(run_shell_command('git diff --stat ' . escapeshellarg($before) . ' ' . escapeshellarg($after))['output']);
-    return ['ok' => true, 'message' => "Deployment erfolgreich: {$before} → {$after}.", 'changed' => true, 'diff' => $diffStat];
+    $message = "Deployment erfolgreich: {$before} → {$after}.";
+
+    // Der RSVP-Gateway-Bot (rsvp-bot/) läuft dauerhaft per PM2 und merkt von neuen Dateien nichts
+    // automatisch (anders als PHP, das pro Request neu eingelesen wird) — bei Änderungen dort
+    // gleich mit neu starten. Best-effort: pm2 könnte fehlen/nicht eingerichtet sein, das darf den
+    // eigentlichen Deploy-Erfolg nicht verfälschen.
+    $changedFiles = run_shell_command('git diff --name-only ' . escapeshellarg($before) . ' ' . escapeshellarg($after))['output'];
+    if (str_contains($changedFiles, 'rsvp-bot/')) {
+        $restart = run_shell_command('pm2 restart teamverwaltung-rsvp-bot');
+        $message .= $restart['ok']
+            ? ' RSVP-Bot wurde neu gestartet.'
+            : ' Hinweis: rsvp-bot/ hat sich geändert, „pm2 restart teamverwaltung-rsvp-bot“ ist aber fehlgeschlagen (evtl. noch nicht eingerichtet, siehe rsvp-bot/README.md) — manuell neu starten.';
+    }
+
+    return ['ok' => true, 'message' => $message, 'changed' => true, 'diff' => $diffStat];
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

@@ -1,0 +1,20 @@
+{
+  "name": "teamverwaltung-rsvp-bot",
+  "version": "1.0.0",
+  "description": "Nimmt Zusagen/Vielleicht/Absagen-Button-Klicks unter Besprechungs-Ankuendigungen ueber Discords Gateway entgegen (statt ueber den HTTP-Interactions-Endpoint) und schreibt sie direkt in die Teamverwaltung-Datenbank.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:restart": "pm2 restart teamverwaltung-rsvp-bot",
+    "pm2:logs": "pm2 logs teamverwaltung-rsvp-bot"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.4.5",
+    "mysql2": "^3.9.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

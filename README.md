@@ -204,21 +204,24 @@ Danach stehen zur Verfügung:
   Ankündigung ist ein Embed (Vom/Bis zum/Ort/Thema/Inhalt) und pingt automatisch die
   Discord-Rollen aller eingeladenen Ränge (plus Team-Rolle bei team-gebundenen
   Besprechungen). Ein „Zum Meeting"-Button verlinkt immer ins Dashboard.
-- **Teilnehmen/Absagen direkt in Discord, ohne Portal-Login**: ist `DISCORD_PUBLIC_KEY`
-  gesetzt, hat die Ankündigungs-Nachricht zusätzlich Teilnehmen/Vielleicht/Absagen-Buttons
-  (`discord_interactions.php`). Ein Klick quittiert sofort mit „Bot denkt nach …" (Discords
-  empfohlenes Muster für Interaktionen, die länger als die von Discord vorgegebenen 3
-  Sekunden dauern könnten) und verarbeitet danach in Ruhe: legt bei Bedarf automatisch ein
-  minimales Mitgliedskonto an, prüft die „Team"-Rolle sowie die Berechtigung
-  `meetings.respond`, und ersetzt die „denkt nach …"-Nachricht per Follow-up durch eine
-  ephemerale (nur für den Klickenden sichtbare) Bestätigung. **Voraussetzung dafür sind `DISCORD_BOT_TOKEN` +
-  `DISCORD_ANNOUNCE_CHANNEL_ID`** (nicht nur ein Webhook): ein normaler Kanal-Webhook kann
-  Klicks auf Buttons mit eigener ID nicht zuverlässig an den Interactions Endpoint
-  ausliefern, nur eine vom Bot selbst gesendete Nachricht. Ist zusätzlich
-  `DISCORD_WEBHOOK_URL` gesetzt, hat der Bot-Kanal für die Ankündigung automatisch Vorrang,
-  sobald interaktive Buttons gebraucht werden; ohne Bot-Kanal postet der Webhook die
-  Ankündigung trotzdem, dann aber nur mit dem „Zum Meeting"-Link (der funktioniert immer,
-  auch über Webhook).
+- **Teilnehmen/Absagen direkt in Discord, ohne Portal-Login**: hat die Ankündigungs-Nachricht
+  zusätzlich Teilnehmen/Vielleicht/Absagen-Buttons. Verarbeitet wird ein Klick über den
+  eigenständigen **`rsvp-bot/`**-Prozess (siehe `rsvp-bot/README.md`) — ein dauerhaft über
+  Discords Gateway verbundener Node-Bot, kein HTTP-Callback von Discord an unseren Server
+  nötig. Das ist bewusst kein Zufall: die frühere Variante über den HTTP-„Interactions
+  Endpoint" (`discord_interactions.php`, jetzt inaktiv, Datei bleibt aus Referenzgründen im
+  Projekt) verlangt eine Antwort von unserem Server innerhalb von 3 Sekunden — mit
+  Cloudflare/nginx/PHP-FPM dazwischen ein unnötig fragiler Weg (siehe „hat nicht rechtzeitig
+  reagiert"-Fehler). Der Bot legt bei Bedarf automatisch ein minimales Mitgliedskonto an,
+  prüft die „Team"-Rolle sowie die Berechtigung `meetings.respond`, und antwortet ephemeral
+  (nur für den Klickenden sichtbar) — exakt dieselbe Logik wie zuvor, nur über einen robusteren
+  Zustellweg, analog zu `Discordbot_Follower`/`Discordbot_Ticket`. **Voraussetzung**:
+  `rsvp-bot/` läuft (siehe dortige README) UND die *Interactions Endpoint URL* im Discord
+  Developer Portal ist **leer** (sonst liefert Discord alles weiterhin per HTTP aus, egal ob
+  der Bot per Gateway verbunden ist). `DISCORD_BOT_TOKEN` + `DISCORD_ANNOUNCE_CHANNEL_ID`
+  bleiben trotzdem nötig, damit die Ankündigung überhaupt vom Bot (statt nur per Webhook)
+  gepostet wird — ein reiner Kanal-Webhook liefert Klicks auf eigene Custom-IDs nicht
+  zuverlässig aus.
 
 Discord-Funktionen sind komplett optional — ohne Konfiguration funktioniert die
 Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
@@ -301,9 +304,12 @@ Discordbot_Follower-Webpanels ("Deployen (git pull)") — einen Button
 Stand vom Remote-Branch direkt ins Live-Verzeichnis. Genau wie beim
 Follower-Bot **fast-forward-only**: Gibt es auf dem Server lokale Änderungen,
 bricht der Vorgang sauber ab (Fehlermeldung statt stillem Überschreiben) und
-verlangt manuellen Eingriff. Ein Prozess-Neustart entfällt hier bewusst (anders
-als beim Bot) — PHP-Dateien werden pro Request neu eingelesen, ein Deploy wirkt
-also sofort.
+verlangt manuellen Eingriff. Für PHP-Dateien entfällt ein Prozess-Neustart —
+werden pro Request neu eingelesen, ein Deploy wirkt also sofort. Ändert sich dabei
+etwas unter `rsvp-bot/` (siehe unten), wird zusätzlich automatisch
+`pm2 restart teamverwaltung-rsvp-bot` ausgeführt (best-effort — falls PM2 dafür
+noch nicht eingerichtet ist, erscheint stattdessen ein Hinweis zum manuellen
+Neustart, der eigentliche Deploy gilt trotzdem als erfolgreich).
 
 Jeder Klick wird zusätzlich zum Aktivitäts-Log auch in den Development-/Fehler-Log-Kanal
 gepostet (grün bei Erfolg, rot bei Fehlschlag mit dem Grund) — so ist im gleichen Kanal wie
@@ -401,7 +407,8 @@ unabhängig vom zugewiesenen Rang alle Rechte.
 ```
 bootstrap.php     Zentrales Bootstrapping (Session, .env, DB, Klassen, setzt APP_BOOTSTRAPPED)
 index.php, login.php, meetings.php, …   Aufrufbare Seiten, liegen direkt im Root (wie bei Website)
-discord_interactions.php   Discord-Button-Endpunkt (RSVP ohne Login), von Discord direkt aufgerufen
+discord_interactions.php   Frueherer Discord-Button-HTTP-Endpunkt, inaktiv seit rsvp-bot/ (siehe dort)
+rsvp-bot/         Eigenstaendiger Node-Prozess: nimmt RSVP-Button-Klicks per Discord-Gateway entgegen (siehe rsvp-bot/README.md)
 assets/           CSS/JS, öffentlich
 src/              PHP-Klassen (Env, DB, Auth, Perm, Settings, DiscordClient) – per APP_BOOTSTRAPPED-Guard geschützt
 includes/         Layout-Header/Footer – per APP_BOOTSTRAPPED-Guard geschützt
