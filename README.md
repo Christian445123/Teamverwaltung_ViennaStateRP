@@ -237,6 +237,15 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
 - **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
   1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
 
+## Bewerbungs-Benachrichtigung in Discord
+
+Optional postet jede neu eingegangene Bewerbung (`careers_apply.php`) ein Embed in einen
+Discord-Kanal: `DISCORD_APPLICATIONS_WEBHOOK_URL` in der `.env` setzen. Gepingt werden die
+Discord-Rollen der Ränge **„Teamleitung"** und **„Stv. Teamleitung"** — die Rollen-IDs kommen
+aus `ranks.discord_role_id` (unter *Ränge* einstellbar, nicht in der `.env`), die Migration
+trägt bekannte IDs einmalig vor, sofern dort noch keine gesetzt ist. Ohne Zuordnung wird nur
+ohne Ping gepostet, ohne Webhook passiert gar nichts.
+
 ## Aktivitäts-Log in Discord
 
 Optional lässt sich jede protokollierte Aktion zusätzlich als Embed in einen Discord-Kanal

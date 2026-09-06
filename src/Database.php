@@ -5,7 +5,7 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 class DB
 {
     // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
-    private const SCHEMA_VERSION = 5;
+    private const SCHEMA_VERSION = 6;
 
     private static ?PDO $instance = null;
 
@@ -415,6 +415,19 @@ class DB
             if ((int) $countStmt->fetch()['c'] === 0) {
                 $db->prepare("DELETE FROM ranks WHERE id = ?")->execute([$legacyId]);
             }
+        }
+
+        // Bekannte Discord-Rollen-IDs für die Bewerbungs-Benachrichtigung (Ping bei neuer
+        // Bewerbung, siehe DiscordClient::announceNewApplication()) direkt vorbelegen — analog
+        // zur "Team"-Rolle oben. Nur nachgetragen, falls noch keine Rollen-ID gesetzt ist, ein
+        // bereits per UI gewählter Wert bleibt unangetastet.
+        $knownRankRoleIds = [
+            'Teamleitung' => '1520815251463868549',
+            'Stv. Teamleitung' => '1537496171877236947',
+        ];
+        $updateRankRole = $db->prepare("UPDATE ranks SET discord_role_id = ? WHERE name = ? AND discord_role_id IS NULL");
+        foreach ($knownRankRoleIds as $rankName => $roleId) {
+            $updateRankRole->execute([$roleId, $rankName]);
         }
 
         $db->prepare("INSERT INTO schema_meta (id, version) VALUES (1, ?) ON DUPLICATE KEY UPDATE version = VALUES(version)")

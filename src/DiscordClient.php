@@ -774,6 +774,58 @@ class DiscordClient
     }
 
     /**
+     * Postet eine neu eingegangene Bewerbung (careers_apply.php) in den optionalen
+     * Bewerbungs-Kanal (DISCORD_APPLICATIONS_WEBHOOK_URL), mit Ping auf die Discord-Rollen der
+     * Ränge "Teamleitung" und "Stv. Teamleitung" (ranks.discord_role_id — unter Ränge
+     * einstellbar). Best-effort: ohne Webhook oder ohne zugeordnete Rollen passiert nichts.
+     */
+    public static function announceNewApplication(array $application, string $postingTitle): void
+    {
+        $webhook = Settings::get('discord_applications_webhook_url');
+        if (!$webhook) return;
+
+        $stmt = DB::get()->prepare("SELECT discord_role_id FROM ranks WHERE name IN ('Teamleitung', 'Stv. Teamleitung') AND discord_role_id IS NOT NULL AND discord_role_id != ''");
+        $stmt->execute();
+        $roleIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+        $fields = [
+            ['name' => 'Name', 'value' => $application['applicant_name'], 'inline' => true],
+            ['name' => 'Stelle', 'value' => $postingTitle, 'inline' => true],
+        ];
+        if (!empty($application['applicant_age'])) {
+            $fields[] = ['name' => 'Alter', 'value' => (string) $application['applicant_age'], 'inline' => true];
+        }
+        if (!empty($application['discord_tag'])) {
+            $fields[] = ['name' => 'Discord-Tag', 'value' => $application['discord_tag'], 'inline' => true];
+        }
+
+        $embed = [
+            'title' => '📥 Neue Bewerbung',
+            'color' => 0x5865F2,
+            'fields' => $fields,
+            'footer' => ['text' => 'Teamverwaltung'],
+            'timestamp' => date('c'),
+        ];
+
+        $payload = [
+            'embeds' => [$embed],
+            'components' => [[
+                'type' => 1,
+                'components' => [[
+                    'type' => 2, 'style' => 5, 'label' => 'Bewerbung ansehen',
+                    'url' => Settings::appUrl() . '/applications.php',
+                ]],
+            ]],
+        ];
+        if ($roleIds) {
+            $payload['content'] = implode(' ', array_map(fn($id) => "<@&{$id}>", $roleIds));
+            $payload['allowed_mentions'] = ['parse' => [], 'roles' => $roleIds];
+        }
+
+        self::request('POST', rtrim($webhook, '/') . '?wait=false', json_encode($payload), ['Content-Type: application/json'], 5);
+    }
+
+    /**
      * Postet eine protokollierte Aktion (siehe audit_log() in helpers.php) als Embed in den
      * optionalen Aktivitäts-Log-Kanal (DISCORD_LOG_WEBHOOK_URL). Rein informativ und best-effort:
      * ohne konfigurierten Webhook passiert nichts, ein fehlgeschlagener Request blockiert oder
