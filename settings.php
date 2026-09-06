@@ -73,23 +73,24 @@ function run_shell_command(string $cmd): array
 }
 
 /**
- * Führt einen "pm2 ..."-Befehl über eine echte Bash-LOGIN-Shell aus. Reines HOME setzen (frühere
- * Version) reichte nicht: whoami/$HOME stimmten mit der SSH-Session überein, "pm2 jlist" lieferte
- * mit diesem HOME aber trotzdem eine leere Liste — der eigentliche laufende Daemon wird also über
- * etwas gefunden, das nur eine Login-Shell lädt (typischerweise nvm/PM2_HOME/PATH-Setup in
- * .bashrc/.bash_profile). proc_open() startet eine reine, nicht-interaktive Shell, die diese
- * Dateien NICHT sourced — "bash -lc" erzwingt genau das und reproduziert damit dieselbe Umgebung
- * wie eine interaktive SSH-Session.
+ * Führt einen "pm2 ..."-Befehl aus, nachdem explizit alle gängigen Shell-Startdateien geladen
+ * wurden. Weder reines HOME setzen noch "bash -lc" (Login-Shell) reichten: der PM2-Daemon, den
+ * die SSH-Session kennt, wird offenbar über etwas gefunden, das nur eine bestimmte Startdatei
+ * lädt (typischerweise nvm/PM2_HOME/PATH-Setup) — welche genau, ist je nach Server-Setup
+ * unterschiedlich (mal .bashrc, mal .bash_profile/.profile). Statt uns auf Login-/Interactive-
+ * Shell-Konventionen zu verlassen (die sich zwischen Distros unterscheiden), sourcen wir hier
+ * einfach alle drei Kandidaten der Reihe nach, still und ohne Abbruch falls eine fehlt.
  */
 function run_pm2_command(string $args): array
 {
-    $result = run_shell_command('bash -lc ' . escapeshellarg('pm2 ' . $args));
+    $loadRcFiles = 'for f in ~/.bashrc ~/.bash_profile ~/.profile; do [ -f "$f" ] && . "$f" >/dev/null 2>&1; done; ';
+    $result = run_shell_command('bash -c ' . escapeshellarg($loadRcFiles . 'pm2 ' . $args));
     if (!$result['ok']) {
-        // Schlägt es trotz Login-Shell fehl, direkt die Diagnosedaten mitliefern, statt im
-        // Blindflug weiter zu raten.
-        $diag = trim(run_shell_command('bash -lc ' . escapeshellarg('echo whoami=$(whoami) HOME=$HOME PM2_HOME=$PM2_HOME; which pm2; pm2 --version'))['output']);
-        $pm2List = trim(run_shell_command('bash -lc ' . escapeshellarg('pm2 jlist'))['output']);
-        $result['output'] .= "\n\n[Diagnose] {$diag}\npm2 jlist (via bash -lc): " . mb_substr($pm2List, 0, 800);
+        // Schlägt es trotzdem fehl, direkt die Diagnosedaten mitliefern, statt im Blindflug
+        // weiter zu raten.
+        $diag = trim(run_shell_command('bash -c ' . escapeshellarg($loadRcFiles . 'echo whoami=$(whoami) HOME=$HOME PM2_HOME=$PM2_HOME; which pm2; pm2 --version'))['output']);
+        $pm2List = trim(run_shell_command('bash -c ' . escapeshellarg($loadRcFiles . 'pm2 jlist'))['output']);
+        $result['output'] .= "\n\n[Diagnose] {$diag}\npm2 jlist: " . mb_substr($pm2List, 0, 800);
     }
     return $result;
 }
