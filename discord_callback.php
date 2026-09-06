@@ -26,6 +26,18 @@ if (!$discordUser || empty($discordUser['id'])) {
 
 $db = DB::get();
 
+// Gesperrte Mitglieder abfangen, BEVOR die normale Logik unten greift — sonst würde die Suche
+// nach "WHERE discord_id = ? AND status = 'active' AND is_banned = 0" weiter unten niemanden
+// finden und stattdessen (im Login-Fall) ein zweites, ungesperrtes Konto für dieselbe Person
+// anlegen. Läuft unabhängig von $linkMode, damit sich Gesperrte auch nicht per Verknüpfung
+// wieder Zugriff verschaffen können.
+$bannedCheck = $db->prepare("SELECT is_banned FROM users WHERE discord_id = ? AND is_banned = 1");
+$bannedCheck->execute([$discordUser['id']]);
+if ($bannedCheck->fetch()) {
+    flash('error', 'Dieser Discord-Account ist gesperrt.');
+    redirect(url('login.php'));
+}
+
 if ($linkMode) {
     $me = Auth::requireLogin();
 
@@ -53,7 +65,7 @@ if ($linkMode) {
     redirect(url('profile.php'));
 }
 
-$stmt = $db->prepare("SELECT * FROM users WHERE discord_id = ? AND status = 'active'");
+$stmt = $db->prepare("SELECT * FROM users WHERE discord_id = ? AND status = 'active' AND is_banned = 0");
 $stmt->execute([$discordUser['id']]);
 $user = $stmt->fetch();
 

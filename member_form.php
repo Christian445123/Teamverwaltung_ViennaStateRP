@@ -23,16 +23,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? 'save';
 
-    if ($action === 'delete' && $member) {
+    if ($action === 'kick' && $member) {
         if (!empty($member['is_superadmin'])) {
-            flash('error', 'Der Administrator-Account kann nicht deaktiviert werden.');
+            flash('error', 'Der Administrator-Account kann nicht aus dem Team geworfen werden.');
             redirect(url('member_form.php?id=' . $member['id']));
         }
-        $stmt = $db->prepare("UPDATE users SET status = 'inactive' WHERE id = ?");
-        $stmt->execute([$member['id']]);
-        audit_log('member.deactivate', $member['display_name']);
-        flash('success', 'Mitglied wurde deaktiviert.');
+        // Deaktiviert, entfernt Rang & alle Team-Zuordnungen, und räumt anschließend die davon
+        // abhängigen Discord-Rollen auf (die "Team"-Rolle selbst bleibt unangetastet — die wird
+        // wie überall in dieser App ausschließlich manuell in Discord gepflegt).
+        $db->prepare("UPDATE users SET status = 'inactive', rank_id = NULL WHERE id = ?")->execute([$member['id']]);
+        $db->prepare("DELETE FROM user_teams WHERE user_id = ?")->execute([$member['id']]);
+        if (Settings::isBotConfigured() && $member['discord_id']) {
+            $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$member['id']]);
+            DiscordClient::syncRolesForUser($stmt->fetch());
+        }
+        audit_log('member.kick', $member['display_name']);
+        flash('success', 'Mitglied wurde aus dem Team geworfen.');
         redirect(url('members.php'));
+    }
+
+    if ($action === 'ban' && $member) {
+        if (!empty($member['is_superadmin'])) {
+            flash('error', 'Der Administrator-Account kann nicht gesperrt werden.');
+            redirect(url('member_form.php?id=' . $member['id']));
+        }
+        $reason = trim($_POST['banned_reason'] ?? '');
+        $db->prepare("UPDATE users SET is_banned = 1, banned_reason = ? WHERE id = ?")->execute([$reason ?: null, $member['id']]);
+        if (Settings::isBotConfigured() && $member['discord_id']) {
+            $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$member['id']]);
+            DiscordClient::syncRolesForUser($stmt->fetch());
+        }
+        audit_log('member.ban', $member['display_name'] . ($reason ? " ({$reason})" : ''));
+        flash('success', 'Mitglied wurde gesperrt.');
+        redirect(url('member_form.php?id=' . $member['id']));
+    }
+
+    if ($action === 'unban' && $member) {
+        $db->prepare("UPDATE users SET is_banned = 0, banned_reason = NULL WHERE id = ?")->execute([$member['id']]);
+        if (Settings::isBotConfigured() && $member['discord_id']) {
+            $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$member['id']]);
+            DiscordClient::syncRolesForUser($stmt->fetch());
+        }
+        audit_log('member.unban', $member['display_name']);
+        flash('success', 'Sperre aufgehoben.');
+        redirect(url('member_form.php?id=' . $member['id']));
     }
 
     if ($action === 'sync_discord' && $member) {
@@ -245,12 +282,38 @@ require __DIR__ . '/includes/header.php';
 <?php endif; ?>
 
 <?php if (!$member['is_superadmin']): ?>
+<div class="card" style="max-width:640px;<?= $member['is_banned'] ? 'border-color:var(--danger);' : '' ?>">
+  <h2>Sperren</h2>
+  <?php if ($member['is_banned']): ?>
+    <p><span class="badge" style="background:var(--danger);">🔒 Gesperrt</span></p>
+    <?php if ($member['banned_reason']): ?><p class="text-muted">Grund: <?= e($member['banned_reason']) ?></p><?php endif; ?>
+    <p class="text-muted" style="font-size:13px;">Kann sich nicht einloggen und nicht auf Besprechungen antworten, solange gesperrt.</p>
+    <form method="post" data-confirm="Sperre wirklich aufheben?">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="unban">
+      <button class="btn secondary" type="submit">Entsperren</button>
+    </form>
+  <?php else: ?>
+    <p class="text-muted" style="margin-top:0;">Blockiert Login &amp; Antworten auf Besprechungen, unabhängig vom Aktiv-Status — reversibel über „Entsperren". Setzt automatisch die zugeordnete Discord-Rolle, falls verknüpft.</p>
+    <form method="post">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="ban">
+      <div class="field">
+        <label>Grund (optional)</label>
+        <input type="text" name="banned_reason" placeholder="z. B. Regelverstoß, in Klärung …">
+      </div>
+      <button class="btn danger" type="submit" data-confirm="Mitglied wirklich sperren?">Sperren</button>
+    </form>
+  <?php endif; ?>
+</div>
+
 <div class="card" style="max-width:640px;border-color:var(--danger);">
   <h2>Gefahrenzone</h2>
-  <form method="post" data-confirm="Mitglied wirklich deaktivieren?">
+  <p class="text-muted" style="margin-top:0;">Entfernt Rang &amp; alle Team-Zuordnungen, deaktiviert das Konto und räumt die zugehörigen Discord-Rollen auf. Nicht rückgängig zu machen über die Oberfläche.</p>
+  <form method="post" data-confirm="Mitglied wirklich aus dem Team werfen?">
     <?= csrf_field() ?>
-    <input type="hidden" name="action" value="delete">
-    <button class="btn danger" type="submit">Mitglied deaktivieren</button>
+    <input type="hidden" name="action" value="kick">
+    <button class="btn danger" type="submit">Aus dem Team werfen</button>
   </form>
 </div>
 <?php endif; ?>

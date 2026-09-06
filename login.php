@@ -86,5 +86,11 @@ require __DIR__ . '/includes/header.php';
       <?= $setupMode ? 'Konto erstellen' : 'Anmelden' ?>
     </button>
   </form>
+  <?php if (!$setupMode): ?>
+  <div class="divider">oder</div>
+  <a class="btn secondary" style="width:100%;justify-content:center;" href="<?= url('careers.php') ?>">
+    📋 Offene Stellen ansehen
+  </a>
+  <?php endif; ?>
 </div>
 <?php require __DIR__ . '/includes/footer.php'; ?>

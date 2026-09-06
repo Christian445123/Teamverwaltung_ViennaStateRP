@@ -203,6 +203,12 @@ class DiscordClient
         foreach (self::autoAssignExtraRoleIds() as $extraRoleId) {
             $desiredExtra[] = $extraRoleId;
         }
+        // "Gesperrt": Gegenteil vom generischen Zusatzrollen-Muster oben — hier vergibt die
+        // Teamverwaltung selbst, abhängig von users.is_banned (siehe member_form.php „Sperren").
+        $bannedRoleId = self::extraRoleId('banned');
+        if ($bannedRoleId && !empty($user['is_banned'])) {
+            $desiredExtra[] = $bannedRoleId;
+        }
 
         $newRoles = array_values(array_unique(array_merge($keptRoles, $desiredExtra)));
 
@@ -396,6 +402,11 @@ class DiscordClient
         foreach (self::autoAssignExtraRoleIds() as $extraRoleId) {
             $ids[] = $extraRoleId;
         }
+        // "Gesperrt" wird — anders als "Team"/"High-Team" — aktiv von der Teamverwaltung vergeben
+        // UND entfernt (siehe syncRolesForUser()), gehört also ins verwaltete Set, damit ein
+        // Entsperren die Rolle auch wieder entfernt.
+        $bannedRoleId = self::extraRoleId('banned');
+        if ($bannedRoleId) $ids[] = $bannedRoleId;
         return array_values(array_unique($ids));
     }
 

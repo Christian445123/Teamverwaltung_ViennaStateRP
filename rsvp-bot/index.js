@@ -139,6 +139,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       user = await queryOne('SELECT * FROM users WHERE discord_id = ?', [interaction.user.id]);
     }
 
+    if (user.is_banned) {
+      await interaction.editReply('Du bist gesperrt und kannst nicht auf Besprechungen antworten.');
+      return;
+    }
+
     // Berechtigung "meetings.respond" prüfen — Superadmin hat immer alle Rechte (siehe Perm::has() in PHP).
     let hasPermission = !!user.is_superadmin;
     if (!hasPermission && user.rank_id) {

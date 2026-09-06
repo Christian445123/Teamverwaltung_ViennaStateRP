@@ -5,7 +5,7 @@ defined('APP_BOOTSTRAPPED') || exit('Direct access not permitted.');
 class DB
 {
     // Bei jeder inhaltlichen Änderung an migrate() (neue Tabelle/Spalte/Backfill) hochzählen.
-    private const SCHEMA_VERSION = 7;
+    private const SCHEMA_VERSION = 8;
 
     private static ?PDO $instance = null;
 
@@ -131,6 +131,17 @@ class DB
             $db->exec("ALTER TABLE `users` ADD COLUMN `is_team` TINYINT(1) NOT NULL DEFAULT 0");
         }
 
+        // Sperren: unabhängig von status (aktiv/inaktiv) — ein gesperrtes Mitglied bleibt sichtbar
+        // und reversibel (im Gegensatz zum "Aus dem Team werfen", das eher endgültig gemeint ist),
+        // kann sich aber weder einloggen noch auf Besprechungen antworten, und bekommt automatisch
+        // eine dafür konfigurierte Discord-Rolle (siehe discord_extra_roles Slug "banned" unten).
+        if (!in_array('is_banned', $existingUserCols, true)) {
+            $db->exec("ALTER TABLE `users` ADD COLUMN `is_banned` TINYINT(1) NOT NULL DEFAULT 0");
+        }
+        if (!in_array('banned_reason', $existingUserCols, true)) {
+            $db->exec("ALTER TABLE `users` ADD COLUMN `banned_reason` VARCHAR(255) NULL");
+        }
+
         // Mehrfach-Teams pro Mitglied: users.team_id blieb aus Kompatibilität in der Tabelle
         // stehen, ist aber nicht mehr die Quelle der Wahrheit — user_teams löst es ab (n:m).
         // Bestehende single-team-Zuordnungen werden einmalig übernommen.
@@ -165,6 +176,12 @@ class DB
             // "High-Team": wird NIE automatisch vergeben/entfernt (nur manuell in Discord gepflegt),
             // aber der aktuelle Status wird beim Rollen-Sync gelesen und in users.is_high_team gespiegelt.
             $stmt->execute(['high_team', 'High-Team', null, 0]);
+            // "Gesperrt": Gegenteil von Team/High-Team — wird GENAU umgekehrt gehandhabt, nämlich
+            // ausschließlich von der Teamverwaltung selbst vergeben/entfernt (siehe
+            // DiscordClient::syncRolesForUser()), abhängig von users.is_banned. auto_assign=0 hier
+            // bedeutet nur "nicht Teil des generischen Auto-Assign-für-alle-Mechanismus" — die
+            // eigentliche Zuweisung läuft über eigenen Code, nicht über dieses Flag.
+            $stmt->execute(['banned', 'Gesperrt', '1546215041421021295', 0]);
         }
 
         // "Team" wurde ursprünglich automatisch vergeben (auto_assign=1) — das ist jetzt bewusst
@@ -174,6 +191,10 @@ class DB
         $db->exec("UPDATE discord_extra_roles SET auto_assign = 0 WHERE slug = 'team'");
         $db->prepare("UPDATE discord_extra_roles SET discord_role_id = ? WHERE slug = 'team' AND discord_role_id IS NULL")
             ->execute(['1520871424871633036']);
+
+        // "Gesperrt" wurde nachträglich ergänzt — auf Bestandsinstallationen (bei denen der obige
+        // COUNT(*)=0-Block schon lange nicht mehr greift) einmalig nachtragen.
+        $db->exec("INSERT IGNORE INTO discord_extra_roles (slug, label, discord_role_id, auto_assign) VALUES ('banned', 'Gesperrt', '1546215041421021295', 0)");
 
         // Zusatzrollen (Discord-Zusatzrechte): rein informative Kennzeichnungen ohne jede
         // Auswirkung auf Teamverwaltung-Berechtigungen — werden ausschließlich manuell in

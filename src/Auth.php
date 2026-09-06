@@ -16,7 +16,9 @@ class Auth
         self::$userCache = null;
 
         if (!empty($_SESSION['user_id'])) {
-            $stmt = DB::get()->prepare("SELECT * FROM users WHERE id = ? AND status = 'active'");
+            // is_banned = 0: eine laufende Session bricht sofort ab, sobald jemand gesperrt wird
+            // (nicht erst beim nächsten Login) — Sperren soll sofort wirken.
+            $stmt = DB::get()->prepare("SELECT * FROM users WHERE id = ? AND status = 'active' AND is_banned = 0");
             $stmt->execute([$_SESSION['user_id']]);
             $user = $stmt->fetch();
             if ($user) {
@@ -30,7 +32,7 @@ class Auth
 
     public static function attemptLogin(string $username, string $password): ?array
     {
-        $stmt = DB::get()->prepare("SELECT * FROM users WHERE username = ? AND status = 'active'");
+        $stmt = DB::get()->prepare("SELECT * FROM users WHERE username = ? AND status = 'active' AND is_banned = 0");
         $stmt->execute([$username]);
         $user = $stmt->fetch();
         if ($user && $user['password_hash'] && password_verify($password, $user['password_hash'])) {

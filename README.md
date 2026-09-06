@@ -257,6 +257,16 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
   Discord-Rolle (aus `ranks.discord_role_id`, unter *Ränge* pro Rang festgelegt) und schreibt
   einen eigenen Eintrag ("🎉 … befördert" / "⬇️ … degradiert") ins Aktivitäts-Log inkl.
   Discord-Benachrichtigung.
+- **Aus dem Team werfen** (`member_form.php`, Gefahrenzone): deaktiviert das Konto, entfernt
+  Rang & alle Team-Zuordnungen und räumt die davon abhängigen Discord-Rollen auf (die
+  "Team"-Rolle selbst bleibt wie überall unangetastet, rein manuelle Discord-Pflege).
+- **Sperren/Entsperren** (`member_form.php`, unabhängig vom Aktiv-Status, reversibel):
+  blockiert Login (Passwort und Discord) sowie Zu-/Absagen auf Besprechungen (Portal, Discord-
+  Button, RSVP-Bot) und Neubewerbungen über die öffentliche Bewerbungsseite (best-effort per
+  Discord-Tag-Abgleich). Setzt automatisch die dafür konfigurierte Discord-Rolle
+  (`discord_extra_roles`, Slug `banned`) — bekannte Rollen-ID direkt vorbelegt, unter *Discord
+  &amp; Einstellungen* änderbar. Eine laufende Session bricht beim Sperren sofort ab, nicht
+  erst beim nächsten Login.
 
 ## Bewerbungs-Benachrichtigung in Discord
 

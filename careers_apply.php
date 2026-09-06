@@ -31,6 +31,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($motivation === '') $errors[] = 'Motivation ist erforderlich.';
     if ($age !== '' && (!ctype_digit($age) || (int) $age < 1 || (int) $age > 120)) $errors[] = 'Alter ist ungültig.';
 
+    // Gesperrte (ehemalige) Mitglieder sollen sich nicht neu bewerben können — best-effort per
+    // Discord-Tag-Abgleich, da hier (öffentliches Formular, kein Login) keine sichere Identität
+    // vorliegt. Ohne Tag oder ohne eindeutigen Treffer keine Prüfung möglich, dann greift diese
+    // Sperre nicht — kein Unterschied zu einer normalen, unbekannten Bewerbung.
+    if ($discordTag !== '' && Settings::isBotConfigured()) {
+        $match = DiscordClient::findGuildMemberByTag($discordTag);
+        if ($match) {
+            $bannedStmt = $db->prepare("SELECT is_banned FROM users WHERE discord_id = ? AND is_banned = 1");
+            $bannedStmt->execute([$match['id']]);
+            if ($bannedStmt->fetchColumn()) {
+                $errors[] = 'Deine Bewerbung kann aktuell nicht angenommen werden.';
+            }
+        }
+    }
+
     $customAnswers = [];
     foreach ($questions as $q) {
         $customAnswers[$q['id']] = trim($_POST['question_' . $q['id']] ?? '');

@@ -115,6 +115,7 @@ require __DIR__ . '/includes/header.php';
             <strong><?= e($m['display_name']) ?></strong>
             <?php if (!empty($m['is_team'])): ?><span class="badge outline" style="font-size:10px;" title="Team">TEAM</span><?php endif; ?>
             <?php if (!empty($m['is_high_team'])): ?><span class="badge" style="background:#e8b86d;color:#2b2d31;" title="High-Team">★</span><?php endif; ?>
+            <?php if (!empty($m['is_banned'])): ?><span class="badge" style="background:var(--danger);" title="<?= e($m['banned_reason'] ?: 'Gesperrt') ?>">🔒 Gesperrt</span><?php endif; ?>
           </div>
         </td>
         <td>

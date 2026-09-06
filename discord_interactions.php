@@ -216,6 +216,11 @@ try {
         $user = $stmt->fetch();
     }
 
+    if (!empty($user['is_banned'])) {
+        send_followup($applicationId, $interactionToken, 'Du bist gesperrt und kannst nicht auf Besprechungen antworten.');
+        exit;
+    }
+
     if (!Perm::has($user, 'meetings.respond')) {
         send_followup($applicationId, $interactionToken, 'Dir fehlt die Berechtigung, auf Besprechungen zu antworten.');
         exit;
