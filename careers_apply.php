@@ -54,6 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         audit_log('application.submitted', "{$name} → {$posting['title']}", $name);
         DiscordClient::announceNewApplication(
+            (int) $applicationId,
             ['applicant_name' => $name, 'applicant_age' => $age !== '' ? (int) $age : null, 'discord_tag' => $discordTag ?: null],
             $posting['title']
         );

@@ -779,7 +779,7 @@ class DiscordClient
      * Ränge "Teamleitung" und "Stv. Teamleitung" (ranks.discord_role_id — unter Ränge
      * einstellbar). Best-effort: ohne Webhook oder ohne zugeordnete Rollen passiert nichts.
      */
-    public static function announceNewApplication(array $application, string $postingTitle): void
+    public static function announceNewApplication(int $applicationId, array $application, string $postingTitle): void
     {
         $webhook = Settings::get('discord_applications_webhook_url');
         if (!$webhook) return;
@@ -813,7 +813,7 @@ class DiscordClient
                 'type' => 1,
                 'components' => [[
                     'type' => 2, 'style' => 5, 'label' => 'Bewerbung ansehen',
-                    'url' => Settings::appUrl() . '/applications.php',
+                    'url' => Settings::appUrl() . '/application_view.php?id=' . $applicationId,
                 ]],
             ]],
         ];
