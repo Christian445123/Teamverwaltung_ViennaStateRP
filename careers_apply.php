@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $availability = trim($_POST['availability'] ?? '');
 
     if ($name === '') $errors[] = 'Name ist erforderlich.';
-    if ($discordTag === '') $errors[] = 'Discord-Tag ist erforderlich.';
     if ($motivation === '') $errors[] = 'Motivation ist erforderlich.';
     if ($age !== '' && (!ctype_digit($age) || (int) $age < 1 || (int) $age > 120)) $errors[] = 'Alter ist ungültig.';
 
@@ -43,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("INSERT INTO applications (posting_id, applicant_name, applicant_age, discord_tag, motivation, availability, booking_token)
             VALUES (?, ?, ?, ?, ?, ?, ?)");
         $stmt->execute([
-            $posting['id'], $name, $age !== '' ? (int) $age : null, $discordTag, $motivation, $availability ?: null, $bookingToken,
+            $posting['id'], $name, $age !== '' ? (int) $age : null, $discordTag ?: null, $motivation, $availability ?: null, $bookingToken,
         ]);
         $applicationId = $db->lastInsertId();
 
@@ -93,8 +92,8 @@ require __DIR__ . '/includes/header.php';
           </div>
         </div>
         <div class="field">
-          <label>Discord-Tag *</label>
-          <input type="text" name="discord_tag" value="<?= e($_POST['discord_tag'] ?? '') ?>" placeholder="z. B. deinname" required>
+          <label>Discord-Tag (optional)</label>
+          <input type="text" name="discord_tag" value="<?= e($_POST['discord_tag'] ?? '') ?>" placeholder="z. B. deinname — falls du Discord nutzt">
         </div>
         <div class="field">
           <label>Verfügbarkeit (Zeiten/Tage)</label>
