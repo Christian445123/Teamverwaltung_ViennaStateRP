@@ -237,6 +237,28 @@ Teamverwaltung als reine Web-App mit Benutzername/Passwort-Login.
 - **Mitglieder können mehreren Teams angehören** (`user_teams`, n:m) — ersetzt die frühere
   1:1-Zuordnung; beim Discord-Rollen-Push werden alle zugeordneten Team-Rollen gesetzt.
 
+## Deployment per Klick (git pull)
+
+Unter **Discord & Einstellungen** gibt es — nach dem Vorbild des
+Discordbot_Follower-Webpanels ("Deployen (git pull)") — einen Button
+**„🚀 Jetzt deployen"**: holt per `git fetch` + Fast-Forward-Merge den neuesten
+Stand vom Remote-Branch direkt ins Live-Verzeichnis. Genau wie beim
+Follower-Bot **fast-forward-only**: Gibt es auf dem Server lokale Änderungen,
+bricht der Vorgang sauber ab (Fehlermeldung statt stillem Überschreiben) und
+verlangt manuellen Eingriff. Ein Prozess-Neustart entfällt hier bewusst (anders
+als beim Bot) — PHP-Dateien werden pro Request neu eingelesen, ein Deploy wirkt
+also sofort.
+
+**Voraussetzung:** Das von CloudPanel vorgegebene Site-Verzeichnis muss ein
+Git-Checkout dieses Repos mit konfiguriertem `origin`-Remote sein (statt nur
+hochgeladener Dateien, siehe Deployment-Abschnitt oben) — z. B. einmalig per
+`git clone <repo-url> .` ins Site-Verzeichnis (Achtung: `.env` danach erneut
+anlegen, `.gitignore` schließt sie aus). Außerdem müssen `git` sowie PHPs
+`proc_open()` auf dem Server verfügbar sein (bei manchen Shared-Hosting-Setups
+über `disable_functions` deaktiviert — der Button zeigt in dem Fall eine klare
+Fehlermeldung statt eines Serverfehlers). Jede Nutzung wird zusätzlich im
+internen Änderungsprotokoll (`audit_log`) festgehalten.
+
 ## Öffentliche Bewerbungsseite
 
 Unter `careers.php` (kein Login nötig) werden alle offenen Stellenausschreibungen

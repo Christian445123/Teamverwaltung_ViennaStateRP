@@ -47,9 +47,75 @@ function import_eligible_discord_members(PDO $db): array
     return [$created, $matched, $skipped, $gated];
 }
 
+/**
+ * Führt einen Shell-Befehl im Projektverzeichnis aus (für den Git-Deploy unten). Nutzt
+ * proc_open mit explizitem cwd statt "cd && …" per exec(), damit nicht vom aktuellen
+ * Arbeitsverzeichnis des PHP-Prozesses abhängt. Alle Aufrufer übergeben ausschließlich
+ * feste Befehle bzw. per escapeshellarg() escapete, aus Git selbst stammende Werte (nie
+ * Benutzereingaben) — kein Injection-Risiko.
+ */
+function run_shell_command(string $cmd): array
+{
+    if (!function_exists('proc_open')) {
+        return ['ok' => false, 'output' => 'proc_open() ist auf diesem Server deaktiviert (disable_functions).'];
+    }
+    $descriptors = [1 => ['pipe', 'w'], 2 => ['pipe', 'w']];
+    $process = @proc_open($cmd, $descriptors, $pipes, __DIR__);
+    if (!is_resource($process)) {
+        return ['ok' => false, 'output' => 'Prozess konnte nicht gestartet werden.'];
+    }
+    $stdout = stream_get_contents($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+    return ['ok' => $exitCode === 0, 'output' => trim($stdout . "\n" . $stderr)];
+}
+
+/**
+ * Git-Deploy nach dem Vorbild von Discordbot_Follower/deploy.sh bzw. dessen Webpanel-Button
+ * "Deployen (git pull)": fast-forward-only, damit lokale Server-Änderungen nie stillschweigend
+ * überschrieben werden — schlägt in dem Fall sauber fehl statt zu resetten. Ein Neustart eines
+ * Prozesses (wie beim PM2-Bot) entfällt hier bewusst: PHP-Dateien werden pro Request neu
+ * eingelesen, ein Deploy wirkt also sofort ohne Restart.
+ */
+function deploy_from_git(): array
+{
+    $branchResult = run_shell_command('git rev-parse --abbrev-ref HEAD');
+    $branch = trim($branchResult['output']);
+    if (!$branchResult['ok'] || $branch === '' || $branch === 'HEAD') {
+        return ['ok' => false, 'message' => 'Konnte aktuellen Branch nicht ermitteln — ist das Projektverzeichnis ein Git-Repository?'];
+    }
+
+    $before = trim(run_shell_command('git rev-parse --short HEAD')['output']);
+
+    $fetch = run_shell_command('git fetch --quiet origin ' . escapeshellarg($branch));
+    if (!$fetch['ok']) {
+        return ['ok' => false, 'message' => 'git fetch fehlgeschlagen: ' . $fetch['output']];
+    }
+
+    $merge = run_shell_command('git merge --ff-only --quiet ' . escapeshellarg('origin/' . $branch));
+    if (!$merge['ok']) {
+        return ['ok' => false, 'message' => 'Fast-Forward nicht möglich (lokale Änderungen auf dem Server?) — manueller Eingriff nötig. ' . $merge['output']];
+    }
+
+    $after = trim(run_shell_command('git rev-parse --short HEAD')['output']);
+    if ($before === $after) {
+        return ['ok' => true, 'message' => 'Bereits aktuell — keine neuen Commits.', 'changed' => false];
+    }
+    return ['ok' => true, 'message' => "Deployment erfolgreich: {$before} → {$after}.", 'changed' => true];
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
     $action = $_POST['action'] ?? '';
+
+    if ($action === 'deploy') {
+        $result = deploy_from_git();
+        flash($result['ok'] ? 'success' : 'error', $result['message']);
+        audit_log('settings.deploy', $result['message']);
+        redirect(url('settings.php'));
+    }
 
     if ($action === 'sync_members') {
         [$created, $matched, $skipped, $gated] = import_eligible_discord_members($db);
@@ -129,6 +195,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(url('settings.php'));
 }
 
+$currentCommit = trim(run_shell_command('git log -1 --format=' . escapeshellarg('%h %s (%cr)'))['output']);
+
 $roles = Settings::isBotConfigured() ? DiscordClient::fetchGuildRoles() : [];
 $extraRoles = Settings::isBotConfigured() ? DiscordClient::extraRoles() : [];
 $extraRolesBySlug = [];
@@ -153,6 +221,21 @@ $active = 'settings';
 require __DIR__ . '/includes/header.php';
 ?>
 <div class="page-header"><h1>Discord &amp; Einstellungen</h1></div>
+
+<div class="card settings-section">
+  <h2>Deployment</h2>
+  <p class="text-muted" style="margin-top:-8px;">Wie beim Discordbot_Follower-Webpanel: holt per <code>git fetch</code> + Fast-Forward-Merge den neuesten Stand vom Remote-Branch. Rein additiv — sind auf dem Server lokale Änderungen vorhanden, bricht der Vorgang sauber ab, statt sie zu überschreiben. Ein Neustart ist danach nicht nötig, PHP-Dateien werden pro Aufruf neu eingelesen.</p>
+  <?php if ($currentCommit): ?>
+    <p style="font-size:13px;">Aktuell live: <code><?= e($currentCommit) ?></code></p>
+  <?php else: ?>
+    <p class="text-muted" style="font-size:13px;">Konnte den aktuellen Git-Stand nicht ermitteln — ist dieses Verzeichnis ein Git-Checkout mit konfiguriertem Remote?</p>
+  <?php endif; ?>
+  <form method="post">
+    <?= csrf_field() ?>
+    <input type="hidden" name="action" value="deploy">
+    <button class="btn" type="submit">🚀 Jetzt deployen (git pull)</button>
+  </form>
+</div>
 
 <div class="card settings-section">
   <h2>Konfigurationsstatus</h2>
