@@ -113,9 +113,13 @@ function deploy_from_git(): array
     $changedFiles = run_shell_command('git diff --name-only ' . escapeshellarg($before) . ' ' . escapeshellarg($after))['output'];
     if (str_contains($changedFiles, 'rsvp-bot/')) {
         $restart = run_shell_command('pm2 restart teamverwaltung-rsvp-bot');
-        $message .= $restart['ok']
-            ? ' RSVP-Bot wurde neu gestartet.'
-            : ' Hinweis: rsvp-bot/ hat sich geändert, „pm2 restart teamverwaltung-rsvp-bot” ist aber fehlgeschlagen — manuell neu starten. Fehler: ' . trim($restart['output']);
+        if ($restart['ok']) {
+            $message .= ' RSVP-Bot wurde neu gestartet.';
+            audit_log('settings.rsvp_bot_restart', 'RSVP-Bot nach Deploy erfolgreich neu gestartet (' . $before . ' → ' . $after . ').');
+        } else {
+            $message .= ' Hinweis: rsvp-bot/ hat sich geändert, „pm2 restart teamverwaltung-rsvp-bot” ist aber fehlgeschlagen — manuell neu starten. Fehler: ' . trim($restart['output']);
+            audit_log('settings.rsvp_bot_restart_failed', 'RSVP-Bot-Neustart nach Deploy fehlgeschlagen: ' . trim($restart['output']));
+        }
     }
 
     return ['ok' => true, 'message' => $message, 'changed' => true, 'diff' => $diffStat];
