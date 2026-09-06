@@ -73,29 +73,23 @@ function run_shell_command(string $cmd): array
 }
 
 /**
- * Führt einen "pm2 ..."-Befehl mit explizit gesetztem HOME aus. PM2 speichert seinen
- * Daemon-Zustand (welche Prozesse laufen) unter $HOME/.pm2 — der PHP-FPM-Prozess hat aber
- * typischerweise ein anderes (oder gar kein) $HOME als die interaktive SSH-Session, in der
- * "pm2 start" ursprünglich lief, und erreicht dadurch einen anderen/leeren Daemon
- * ("[PM2][ERROR] Process or Namespace ... not found", obwohl der Bot tatsächlich läuft).
- * CloudPanel legt Sites immer unter /home/<site-user>/htdocs/<domain>/ ab — zwei Ebenen über
- * diesem Projektverzeichnis liegt also zuverlässig das Home-Verzeichnis des richtigen Nutzers,
- * ganz ohne den Nutzernamen hart zu codieren.
+ * Führt einen "pm2 ..."-Befehl über eine echte Bash-LOGIN-Shell aus. Reines HOME setzen (frühere
+ * Version) reichte nicht: whoami/$HOME stimmten mit der SSH-Session überein, "pm2 jlist" lieferte
+ * mit diesem HOME aber trotzdem eine leere Liste — der eigentliche laufende Daemon wird also über
+ * etwas gefunden, das nur eine Login-Shell lädt (typischerweise nvm/PM2_HOME/PATH-Setup in
+ * .bashrc/.bash_profile). proc_open() startet eine reine, nicht-interaktive Shell, die diese
+ * Dateien NICHT sourced — "bash -lc" erzwingt genau das und reproduziert damit dieselbe Umgebung
+ * wie eine interaktive SSH-Session.
  */
 function run_pm2_command(string $args): array
 {
-    $home = dirname(__DIR__, 2);
-    $result = run_shell_command('HOME=' . escapeshellarg($home) . ' pm2 ' . $args);
+    $result = run_shell_command('bash -lc ' . escapeshellarg('pm2 ' . $args));
     if (!$result['ok']) {
-        // Schlägt es trotz gesetztem HOME fehl, direkt die Diagnosedaten mitliefern, statt im
-        // Blindflug weiter zu raten: welcher Nutzer/HOME führt PHP hier aus, welches HOME wurde
-        // versucht, existiert dort überhaupt ein PM2-Daemon-Verzeichnis, und was sieht "pm2 list"
-        // MIT diesem HOME tatsächlich an laufenden Prozessen.
-        $whoami = trim(run_shell_command('whoami')['output']);
-        $nativeHome = trim(run_shell_command('echo $HOME')['output']);
-        $pm2DirExists = is_dir($home . '/.pm2') ? 'ja' : 'NEIN';
-        $pm2List = trim(run_shell_command('HOME=' . escapeshellarg($home) . ' pm2 jlist')['output']);
-        $result['output'] .= "\n\n[Diagnose] whoami=\"{$whoami}\" natives \$HOME=\"{$nativeHome}\" versuchtes HOME=\"{$home}\" {$home}/.pm2 existiert=\"{$pm2DirExists}\"\npm2 jlist (mit versuchtem HOME): " . mb_substr($pm2List, 0, 800);
+        // Schlägt es trotz Login-Shell fehl, direkt die Diagnosedaten mitliefern, statt im
+        // Blindflug weiter zu raten.
+        $diag = trim(run_shell_command('bash -lc ' . escapeshellarg('echo whoami=$(whoami) HOME=$HOME PM2_HOME=$PM2_HOME; which pm2; pm2 --version'))['output']);
+        $pm2List = trim(run_shell_command('bash -lc ' . escapeshellarg('pm2 jlist'))['output']);
+        $result['output'] .= "\n\n[Diagnose] {$diag}\npm2 jlist (via bash -lc): " . mb_substr($pm2List, 0, 800);
     }
     return $result;
 }
