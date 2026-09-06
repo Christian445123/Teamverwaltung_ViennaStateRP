@@ -853,6 +853,31 @@ class DiscordClient
     }
 
     /**
+     * Postet das Ergebnis eines Deployments (settings.php, "Jetzt deployen") in denselben
+     * Development-/Fehler-Log-Kanal wie postDevLog() — sowohl bei Erfolg als auch bei
+     * Fehlschlag, damit jeder Deploy dort nachvollziehbar ist (eigene grün/rote Einfärbung statt
+     * der reinen Fehler-Optik von postDevLog(), ein erfolgreicher Deploy ist ja kein Bug).
+     */
+    public static function postDeployLog(bool $ok, string $message): void
+    {
+        try {
+            $webhook = Settings::get('discord_dev_log_webhook_url');
+            if (!$webhook) return;
+
+            $embed = [
+                'title' => $ok ? '✅ Deploy erfolgreich' : '❌ Deploy fehlgeschlagen',
+                'description' => mb_substr($message, 0, 1900),
+                'color' => $ok ? 0x23A55A : 0xED4245,
+                'footer' => ['text' => Settings::appUrl()],
+                'timestamp' => date('c'),
+            ];
+            self::request('POST', rtrim($webhook, '/') . '?wait=false', json_encode(['embeds' => [$embed]]), ['Content-Type: application/json'], 4);
+        } catch (\Throwable $e) {
+            // Absichtlich verschluckt — siehe postDevLog().
+        }
+    }
+
+    /**
      * Postet eine protokollierte Aktion (siehe audit_log() in helpers.php) als Embed in den
      * optionalen Aktivitäts-Log-Kanal (DISCORD_LOG_WEBHOOK_URL). Rein informativ und best-effort:
      * ohne konfigurierten Webhook passiert nichts, ein fehlgeschlagener Request blockiert oder

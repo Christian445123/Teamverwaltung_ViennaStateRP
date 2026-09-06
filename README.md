@@ -287,6 +287,10 @@ verlangt manuellen Eingriff. Ein Prozess-Neustart entfällt hier bewusst (anders
 als beim Bot) — PHP-Dateien werden pro Request neu eingelesen, ein Deploy wirkt
 also sofort.
 
+Jeder Klick wird zusätzlich zum Aktivitäts-Log auch in den Development-/Fehler-Log-Kanal
+gepostet (grün bei Erfolg, rot bei Fehlschlag mit dem Grund) — so ist im gleichen Kanal wie
+technische Fehler auch sofort sichtbar, wann zuletzt deployt wurde und ob es geklappt hat.
+
 **Voraussetzung:** Das von CloudPanel vorgegebene Site-Verzeichnis muss ein
 Git-Checkout dieses Repos mit konfiguriertem `origin`-Remote sein (statt nur
 hochgeladener Dateien, siehe Deployment-Abschnitt oben) — z. B. einmalig per

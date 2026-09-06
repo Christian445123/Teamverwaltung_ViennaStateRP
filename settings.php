@@ -114,6 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = deploy_from_git();
         flash($result['ok'] ? 'success' : 'error', $result['message']);
         audit_log('settings.deploy', $result['message']);
+        DiscordClient::postDeployLog($result['ok'], $result['message']);
         redirect(url('settings.php'));
     }
 
