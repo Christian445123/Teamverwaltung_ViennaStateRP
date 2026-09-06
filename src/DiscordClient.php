@@ -788,21 +788,36 @@ class DiscordClient
         $stmt->execute();
         $roleIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-        $fields = [
-            ['name' => 'Name', 'value' => $application['applicant_name'], 'inline' => true],
-            ['name' => 'Stelle', 'value' => $postingTitle, 'inline' => true],
+        // Bewerber möglichst als echte Discord-Erwähnung zeigen (klickbar, Avatar-Vorschau beim
+        // Hover) statt reinem Freitext — best-effort per Tag-Abgleich gegen die Server-Mitglieder
+        // (wie beim automatischen Verknüpfen bei Annahme, siehe findGuildMemberByTag()). Per
+        // allowed_mentions unten wird daraus bewusst KEIN echter Ping — nur die optische
+        // Hervorhebung, kein Discord-Alarm für den Bewerber in einem Kanal, den er evtl. gar
+        // nicht sehen kann.
+        $bewerberLine = $application['applicant_name'];
+        if (!empty($application['discord_tag']) && Settings::isBotConfigured()) {
+            $match = self::findGuildMemberByTag($application['discord_tag']);
+            if ($match) {
+                $bewerberLine = "<@{$match['id']}>";
+            } elseif ($application['discord_tag'] !== $application['applicant_name']) {
+                $bewerberLine .= " ({$application['discord_tag']})";
+            }
+        }
+
+        $lines = [
+            "• **Bewerber:** {$bewerberLine}",
+            "• **Stelle:** {$postingTitle}",
+            '• **Beworben am:** <t:' . time() . ':f>',
         ];
         if (!empty($application['applicant_age'])) {
-            $fields[] = ['name' => 'Alter', 'value' => (string) $application['applicant_age'], 'inline' => true];
-        }
-        if (!empty($application['discord_tag'])) {
-            $fields[] = ['name' => 'Discord-Tag', 'value' => $application['discord_tag'], 'inline' => true];
+            $lines[] = "• **Alter:** {$application['applicant_age']}";
         }
 
         $embed = [
-            'title' => '📥 Neue Bewerbung',
-            'color' => 0x5865F2,
-            'fields' => $fields,
+            'author' => ['name' => 'ViennaStateRP'],
+            'title' => '✅ Neue Bewerbung eingegangen',
+            'description' => implode("\n", $lines),
+            'color' => 0x23A55A,
             'footer' => ['text' => 'Teamverwaltung'],
             'timestamp' => date('c'),
         ];
@@ -812,7 +827,7 @@ class DiscordClient
             'components' => [[
                 'type' => 1,
                 'components' => [[
-                    'type' => 2, 'style' => 5, 'label' => 'Bewerbung ansehen',
+                    'type' => 2, 'style' => 5, 'label' => 'Zur Bewerbung',
                     'url' => Settings::appUrl() . '/application_view.php?id=' . $applicationId,
                 ]],
             ]],
